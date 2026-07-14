@@ -1,3 +1,4 @@
+import PrestationsSection from "./prestations-section";
 // src/app/page.tsx
 export default function Home() {
   // 👉 À MODIFIER : ton vrai numéro WhatsApp au format international (241 + numéro)
@@ -44,6 +45,8 @@ export default function Home() {
           Réserver sur WhatsApp
         </a>
       </section>
+      <PrestationsSection />
+
     </main>
   );
 }
