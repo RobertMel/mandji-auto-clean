@@ -1,0 +1,184 @@
+-- =====================================================================
+--  MANDJI AUTO CLEAN — Schéma initial (MVP)
+--  Base : PostgreSQL (Supabase)
+--  Version : 0001
+--  À exécuter dans : Supabase > SQL Editor > Run
+--  À versionner dans : supabase/migrations/0001_init_schema.sql
+-- =====================================================================
+
+-- Extension nécessaire pour gen_random_uuid()
+-- (déjà active par défaut sur Supabase, on la garde par sécurité)
+create extension if not exists "pgcrypto";
+
+
+-- =====================================================================
+-- 1. CLIENTS  (module « Gestion des clients »)
+-- =====================================================================
+create table clients (
+  id          uuid primary key default gen_random_uuid(),
+  nom         text not null,
+  prenom      text,
+  telephone   text not null,              -- format international conseillé : 241XXXXXXXX
+  email       text,
+  adresse     text,
+  notes       text,                       -- remarques internes (préférences, etc.)
+  created_at  timestamptz not null default now()
+);
+
+-- Recherche rapide par téléphone (identifiant naturel du client)
+create index idx_clients_telephone on clients (telephone);
+
+
+-- =====================================================================
+-- 2. VEHICULES  (module « Gestion des véhicules »)
+--    Un client peut avoir PLUSIEURS véhicules.
+-- =====================================================================
+create table vehicules (
+  id               uuid primary key default gen_random_uuid(),
+  client_id        uuid not null references clients(id) on delete cascade,
+  marque           text,                  -- ex : Toyota
+  modele           text,                  -- ex : Land Cruiser
+  couleur          text,
+  immatriculation  text,
+  type_vehicule    text,                  -- berline, SUV, 4x4, utilitaire, moto...
+  created_at       timestamptz not null default now()
+);
+
+create index idx_vehicules_client on vehicules (client_id);
+
+
+-- =====================================================================
+-- 3. PRESTATIONS  (module « Gestion des prestations » / catalogue)
+--    Prix en FCFA (entier, pas de centimes).
+-- =====================================================================
+create table prestations (
+  id             uuid primary key default gen_random_uuid(),
+  nom            text not null,           -- ex : Lavage extérieur
+  description    text,
+  prix           integer not null,        -- en FCFA
+  duree_minutes  integer,                 -- durée estimée (pour le planning futur)
+  active         boolean not null default true,  -- masquer sans supprimer
+  created_at     timestamptz not null default now()
+);
+
+
+-- =====================================================================
+-- 4. RESERVATIONS  (module « Gestion des rendez-vous »)
+--    Créées par le personnel après réception de la demande WhatsApp,
+--    ou directement sur place.
+-- =====================================================================
+create table reservations (
+  id           uuid primary key default gen_random_uuid(),
+  client_id    uuid references clients(id)   on delete set null,
+  vehicule_id  uuid references vehicules(id) on delete set null,
+  date_rdv     timestamptz,               -- créneau souhaité / prévu
+  statut       text not null default 'en_attente',
+                 -- valeurs : en_attente | confirmee | en_cours | terminee | annulee
+  canal        text default 'whatsapp',
+                 -- valeurs : whatsapp | telephone | sur_place
+  notes        text,
+  created_at   timestamptz not null default now()
+);
+
+create index idx_reservations_statut on reservations (statut);
+create index idx_reservations_date   on reservations (date_rdv);
+
+
+-- =====================================================================
+-- 5. RESERVATION_PRESTATIONS  (le « panier » d'une réservation)
+--    Table de liaison réservation <-> prestations.
+--    prix_applique = prix figé au moment de la réservation.
+-- =====================================================================
+create table reservation_prestations (
+  id              uuid primary key default gen_random_uuid(),
+  reservation_id  uuid not null references reservations(id) on delete cascade,
+  prestation_id   uuid not null references prestations(id)  on delete restrict,
+  prix_applique   integer not null,       -- copie du prix au moment T (FCFA)
+  quantite        integer not null default 1
+);
+
+create index idx_resa_presta_reservation on reservation_prestations (reservation_id);
+
+
+-- =====================================================================
+-- 6. ETATS_DES_LIEUX  (module « État des lieux numérique »)
+--    photos / annotations en JSONB (souple, évolutif).
+--    Les fichiers réels vivent dans Supabase Storage ; on stocke les URLs.
+-- =====================================================================
+create table etats_des_lieux (
+  id              uuid primary key default gen_random_uuid(),
+  reservation_id  uuid references reservations(id) on delete set null,
+  vehicule_id     uuid references vehicules(id)    on delete set null,
+  photos          jsonb not null default '[]',  -- ex : ["url1.jpg", "url2.jpg"]
+  annotations     jsonb not null default '[]',  -- ex : [{"x":120,"y":80,"defaut":"rayure"}]
+  signature_url   text,                          -- image de la signature client
+  pdf_url         text,                          -- PDF généré de l'état des lieux
+  created_at      timestamptz not null default now()
+);
+
+
+-- =====================================================================
+-- 7. ENCAISSEMENTS  (module « Encaissement et facturation »)
+--    Montant total encaissé pour une réservation.
+-- =====================================================================
+create table encaissements (
+  id              uuid primary key default gen_random_uuid(),
+  reservation_id  uuid references reservations(id) on delete set null,
+  montant         integer not null,        -- FCFA
+  mode_paiement   text not null default 'especes',
+                    -- valeurs : especes | mobile_money | virement | carte
+  recu_url        text,                    -- PDF du reçu
+  paye_le         timestamptz not null default now()
+);
+
+create index idx_encaissements_date on encaissements (paye_le);
+
+
+-- =====================================================================
+--  SÉCURITÉ — Row Level Security (RLS)
+--  On active RLS sur toutes les tables. Sans policy, PERSONNE (à part la
+--  clé service_role côté serveur) n'accède aux données : c'est le
+--  comportement voulu par défaut « deny all ».
+--  Pour le MVP : tout utilisateur AUTHENTIFIÉ (ton personnel connecté)
+--  a un accès complet. On affinera par rôle plus tard (module 10).
+-- =====================================================================
+alter table clients                  enable row level security;
+alter table vehicules                enable row level security;
+alter table prestations              enable row level security;
+alter table reservations             enable row level security;
+alter table reservation_prestations  enable row level security;
+alter table etats_des_lieux          enable row level security;
+alter table encaissements            enable row level security;
+
+-- Policy MVP : accès complet aux utilisateurs authentifiés
+create policy "staff_full_access" on clients
+  for all to authenticated using (true) with check (true);
+create policy "staff_full_access" on vehicules
+  for all to authenticated using (true) with check (true);
+create policy "staff_full_access" on prestations
+  for all to authenticated using (true) with check (true);
+create policy "staff_full_access" on reservations
+  for all to authenticated using (true) with check (true);
+create policy "staff_full_access" on reservation_prestations
+  for all to authenticated using (true) with check (true);
+create policy "staff_full_access" on etats_des_lieux
+  for all to authenticated using (true) with check (true);
+create policy "staff_full_access" on encaissements
+  for all to authenticated using (true) with check (true);
+
+
+-- =====================================================================
+--  DONNÉES DE TEST (seed) — quelques prestations pour démarrer.
+--  Supprime ce bloc en production si tu veux repartir vide.
+-- =====================================================================
+insert into prestations (nom, description, prix, duree_minutes) values
+  ('Lavage extérieur',        'Carrosserie, jantes, vitres extérieures',        3000, 20),
+  ('Lavage intérieur',        'Aspiration, tableau de bord, vitres intérieures', 4000, 30),
+  ('Lavage complet',          'Intérieur + extérieur',                          6000, 45),
+  ('Lustrage / polish',       'Traitement carrosserie longue durée',           15000, 90),
+  ('Nettoyage moteur',        'Dégraissage compartiment moteur',                5000, 30),
+  ('Traitement des sièges',   'Shampooing sièges tissu ou cuir',               10000, 60);
+
+-- =====================================================================
+--  FIN DU SCHÉMA 0001
+-- =====================================================================
