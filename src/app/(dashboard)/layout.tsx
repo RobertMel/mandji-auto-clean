@@ -30,9 +30,14 @@ export default async function DashboardLayout({
           <nav className="hidden gap-6 text-sm font-medium sm:flex">
             <a href="/dashboard" className="hover:text-[#1F8A3B]">Lavages</a>
             {(profil.role === "gerante" || profil.role === "admin") && (
-              <a href="/dashboard/stats" className="hover:text-[#1F8A3B]">
-                Statistiques
-              </a>
+              <>
+                <a href="/dashboard/prestations" className="hover:text-[#1F8A3B]">
+                  Prestations
+                </a>
+                <a href="/dashboard/stats" className="hover:text-[#1F8A3B]">
+                  Statistiques
+                </a>
+              </>
             )}
           </nav>
         </div>

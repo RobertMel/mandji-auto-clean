@@ -1,8 +1,13 @@
-import PrestationsSection from "./prestations-section";
 // src/app/page.tsx
+import PrestationsSection from "./prestations-section";
+import { WHATSAPP_NUMBER } from "@/lib/config";
+
+// Le catalogue est relu au plus toutes les 5 minutes (filet de sécurité :
+// une modification depuis le tableau de bord rafraîchit la page aussitôt).
+export const revalidate = 300;
+
 export default function Home() {
-  // 👉 À MODIFIER : ton vrai numéro WhatsApp au format international (241 + numéro)
-  const whatsappNumber = "241XXXXXXXX";
+  const whatsappNumber = WHATSAPP_NUMBER;
   const message = encodeURIComponent(
     "Bonjour Mandji Auto Clean, je souhaite réserver un lavage. Voici les détails :"
   );

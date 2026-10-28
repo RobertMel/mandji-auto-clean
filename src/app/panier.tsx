@@ -11,8 +11,7 @@ export type Prestation = {
   duree_minutes: number | null;
 };
 
-// 👉 À MODIFIER : ton vrai numéro WhatsApp (241 + numéro, sans + ni espaces)
-const WHATSAPP_NUMBER = "24174277124";
+import { WHATSAPP_NUMBER } from "@/lib/config";
 
 export default function Panier({ prestations }: { prestations: Prestation[] }) {
   const [selection, setSelection] = useState<string[]>([]);
