@@ -1,14 +1,9 @@
 // src/app/(dashboard)/dashboard/compta/page.tsx
-import { redirect } from "next/navigation";
-import { creerClientServeur } from "@/lib/supabase/server";
+import { exigerGestionnaire } from "@/lib/session";
 import Compta, { type DonneesBrutes } from "./compta";
 
 export default async function ComptaPage() {
-  const supabase = await creerClientServeur();
-
-  // Garde : gérante et admin uniquement
-  const { data: estGestionnaire } = await supabase.rpc("est_gestionnaire");
-  if (!estGestionnaire) redirect("/dashboard");
+  const { supabase } = await exigerGestionnaire();
 
   const [{ data: encaissements }, { data: achats }, { data: depenses }] = await Promise.all([
     supabase

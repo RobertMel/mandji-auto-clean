@@ -1,6 +1,6 @@
 // src/app/(dashboard)/dashboard/recu/[id]/page.tsx
-import { notFound, redirect } from "next/navigation";
-import { creerClientServeur } from "@/lib/supabase/server";
+import { notFound } from "next/navigation";
+import { exigerGestionnaire } from "@/lib/session";
 import {
   ENTREPRISE,
   MODES_PAIEMENT,
@@ -39,11 +39,7 @@ export default async function RecuPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = await creerClientServeur();
-
-  // Garde : gérante et admin uniquement
-  const { data: estGestionnaire } = await supabase.rpc("est_gestionnaire");
-  if (!estGestionnaire) redirect("/dashboard");
+  const { supabase } = await exigerGestionnaire();
 
   const { data } = await supabase
     .from("encaissements")

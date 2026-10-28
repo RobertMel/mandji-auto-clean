@@ -1,14 +1,9 @@
 // src/app/(dashboard)/dashboard/stock/page.tsx
-import { redirect } from "next/navigation";
-import { creerClientServeur } from "@/lib/supabase/server";
+import { exigerGestionnaire } from "@/lib/session";
 import Stock from "./stock";
 
 export default async function StockPage() {
-  const supabase = await creerClientServeur();
-
-  // Garde : gérante et admin uniquement
-  const { data: estGestionnaire } = await supabase.rpc("est_gestionnaire");
-  if (!estGestionnaire) redirect("/dashboard");
+  const { supabase } = await exigerGestionnaire();
 
   const [{ data: produits }, { data: achats }, { data: sorties }] = await Promise.all([
     supabase

@@ -1,7 +1,7 @@
 // src/app/(dashboard)/dashboard/clients/[id]/page.tsx
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { creerClientServeur } from "@/lib/supabase/server";
+import { notFound } from "next/navigation";
+import { exigerGestionnaire } from "@/lib/session";
 import { MODES_PAIEMENT, fcfa, formatNumeroRecu } from "@/lib/config";
 import FicheClient from "./fiche-client";
 
@@ -52,10 +52,7 @@ export default async function ClientPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = await creerClientServeur();
-
-  const { data: estGestionnaire } = await supabase.rpc("est_gestionnaire");
-  if (!estGestionnaire) redirect("/dashboard");
+  const { supabase } = await exigerGestionnaire();
 
   const { data } = await supabase
     .from("clients")

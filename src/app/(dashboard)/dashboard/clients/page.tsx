@@ -1,6 +1,5 @@
 // src/app/(dashboard)/dashboard/clients/page.tsx
-import { redirect } from "next/navigation";
-import { creerClientServeur } from "@/lib/supabase/server";
+import { exigerGestionnaire } from "@/lib/session";
 import ListeClients, { type ClientResume } from "./liste-clients";
 
 type Ligne = {
@@ -16,10 +15,7 @@ type Ligne = {
 };
 
 export default async function ClientsPage() {
-  const supabase = await creerClientServeur();
-
-  const { data: estGestionnaire } = await supabase.rpc("est_gestionnaire");
-  if (!estGestionnaire) redirect("/dashboard");
+  const { supabase } = await exigerGestionnaire();
 
   const { data } = await supabase
     .from("clients")

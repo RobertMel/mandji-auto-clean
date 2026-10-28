@@ -1,7 +1,6 @@
 // src/app/(dashboard)/layout.tsx
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { creerClientServeur } from "@/lib/supabase/server";
+import { exigerConnexion } from "@/lib/session";
 import Deconnexion from "./deconnexion";
 import NavDashboard from "./nav-dashboard";
 
@@ -10,19 +9,8 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await creerClientServeur();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: profil } = await supabase
-    .from("profils")
-    .select("nom_complet, role, actif")
-    .eq("id", user.id)
-    .single();
-
-  // Compte sans profil ou désactivé : aucun accès (deny by default).
-  if (!profil || !profil.actif) redirect("/login");
+  // Session lue une seule fois, partagée avec la page affichée
+  const { profil } = await exigerConnexion();
 
   const gestionnaire = profil.role === "gerante" || profil.role === "admin";
 
