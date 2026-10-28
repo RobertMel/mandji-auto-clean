@@ -1,4 +1,5 @@
 // src/app/(dashboard)/layout.tsx
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { creerClientServeur } from "@/lib/supabase/server";
 import Deconnexion from "./deconnexion";
@@ -28,15 +29,24 @@ export default async function DashboardLayout({
         <div className="flex items-center gap-4">
           <img src="/logo.png" alt="Mandji" className="h-10" />
           <nav className="hidden gap-6 text-sm font-medium sm:flex">
-            <a href="/dashboard" className="hover:text-[#1F8A3B]">Lavages</a>
+            <Link href="/dashboard" className="hover:text-[#1F8A3B]">Lavages</Link>
             {(profil.role === "gerante" || profil.role === "admin") && (
               <>
-                <a href="/dashboard/prestations" className="hover:text-[#1F8A3B]">
+                <Link href="/dashboard/clients" className="hover:text-[#1F8A3B]">
+                  Clients
+                </Link>
+                <Link href="/dashboard/prestations" className="hover:text-[#1F8A3B]">
                   Prestations
-                </a>
-                <a href="/dashboard/stats" className="hover:text-[#1F8A3B]">
+                </Link>
+                <Link href="/dashboard/stock" className="hover:text-[#1F8A3B]">
+                  Stock
+                </Link>
+                <Link href="/dashboard/compta" className="hover:text-[#1F8A3B]">
+                  Compta
+                </Link>
+                <Link href="/dashboard/stats" className="hover:text-[#1F8A3B]">
                   Statistiques
-                </a>
+                </Link>
               </>
             )}
           </nav>
