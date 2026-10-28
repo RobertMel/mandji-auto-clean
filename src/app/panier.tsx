@@ -1,7 +1,9 @@
 // src/app/panier.tsx
+// Parcours de réservation : 1. prestations -> 2. infos -> envoi WhatsApp
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { WHATSAPP_NUMBER, fcfa } from "@/lib/config";
 
 export type Prestation = {
   id: string;
@@ -11,163 +13,261 @@ export type Prestation = {
   duree_minutes: number | null;
 };
 
-import { WHATSAPP_NUMBER } from "@/lib/config";
+const CRENEAUX = ["Dès que possible", "Aujourd'hui", "Demain matin", "Demain après-midi"];
+
+const champ =
+  "w-full px-4 py-3 text-base bg-white border border-gray-300 rounded-xl focus:outline-none focus:border-lagon";
 
 export default function Panier({ prestations }: { prestations: Prestation[] }) {
   const [selection, setSelection] = useState<string[]>([]);
   const [nom, setNom] = useState("");
   const [vehicule, setVehicule] = useState("");
   const [creneau, setCreneau] = useState("");
+  const [autreCreneau, setAutreCreneau] = useState(false);
+  const [infosVisibles, setInfosVisibles] = useState(false);
+  const refInfos = useRef<HTMLElement>(null);
 
-  // Ajoute ou retire une prestation du panier
-  const basculer = (id: string) => {
-    setSelection((actuel) =>
-      actuel.includes(id)
-        ? actuel.filter((x) => x !== id)
-        : [...actuel, id]
-    );
-  };
+  // Cache la barre du bas quand l'étape 2 est à l'écran
+  useEffect(() => {
+    const el = refInfos.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([e]) => setInfosVisibles(e.isIntersecting), {
+      rootMargin: "0px 0px -30% 0px",
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  const basculer = (id: string) =>
+    setSelection((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 
   const choisies = prestations.filter((p) => selection.includes(p.id));
-  const total = choisies.reduce((somme, p) => somme + p.prix, 0);
-  const dureeTotale = choisies.reduce(
-    (somme, p) => somme + (p.duree_minutes ?? 0),
-    0
-  );
+  const total = choisies.reduce((s, p) => s + p.prix, 0);
+  const duree = choisies.reduce((s, p) => s + (p.duree_minutes ?? 0), 0);
+  const resume = `${choisies.length} prestation${choisies.length > 1 ? "s" : ""}`;
 
-  // Construit le message WhatsApp pré-rempli
-  const construireLien = () => {
+  const lienWhatsApp = () => {
     const lignes = [
       "Bonjour Mandji Auto Clean, je souhaite réserver.",
       "",
-      `Nom : ${nom || "(non renseigné)"}`,
-      `Véhicule : ${vehicule || "(non renseigné)"}`,
-      `Créneau souhaité : ${creneau || "(à convenir)"}`,
+      `Nom : ${nom.trim() || "(non renseigné)"}`,
+      `Véhicule : ${vehicule.trim() || "(non renseigné)"}`,
+      `Créneau souhaité : ${creneau.trim() || "(à convenir)"}`,
       "",
       "Prestations :",
-      ...choisies.map(
-        (p) => `- ${p.nom} (${p.prix.toLocaleString("fr-FR")} FCFA)`
-      ),
+      ...choisies.map((p) => `- ${p.nom} (${fcfa(p.prix)})`),
       "",
-      `Total : ${total.toLocaleString("fr-FR")} FCFA`,
+      `Total : ${fcfa(total)}`,
       "",
       "Je joins une photo de mon véhicule ci-dessous.",
     ];
-    const texte = encodeURIComponent(lignes.join("\n"));
-    return `https://wa.me/${WHATSAPP_NUMBER}?text=${texte}`;
+    return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(lignes.join("\n"))}`;
   };
 
+  const lienQuestion = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
+    "Bonjour Mandji Auto Clean, j'ai une question :"
+  )}`;
+
   return (
-    <section id="prestations" className="px-6 py-20 bg-white">
-      <h2 className="mb-3 text-3xl font-bold text-center">Nos prestations</h2>
-      <p className="mb-12 text-center text-gray-600">
-        Sélectionnez vos prestations, puis envoyez votre demande sur WhatsApp.
-      </p>
+    <>
+      {/* ÉTAPE 1 */}
+      <section id="prestations" className="px-5 pt-12 pb-10 scroll-mt-4 sm:px-8">
+        <div className="max-w-2xl mx-auto">
+          <h2 className="text-2xl font-bold sm:text-3xl">1. Choisissez vos prestations</h2>
+          <p className="mt-2 text-gray-600">Touchez une ou plusieurs prestations, le total se calcule tout seul.</p>
 
-      {/* Cartes sélectionnables */}
-      <div className="grid max-w-5xl gap-6 mx-auto sm:grid-cols-2 lg:grid-cols-3">
-        {prestations.map((p) => {
-          const active = selection.includes(p.id);
-          return (
-            <button
-              key={p.id}
-              onClick={() => basculer(p.id)}
-              className={`p-6 text-left border rounded-2xl transition ${
-                active
-                  ? "border-[#1F8A3B] bg-green-50 ring-2 ring-[#1F8A3B]"
-                  : "border-gray-200 hover:border-[#23B5D3] hover:shadow-md"
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <h3 className="text-lg font-semibold">{p.nom}</h3>
-                {active && <span className="text-[#1F8A3B] font-bold">✓</span>}
-              </div>
-              {p.description && (
-                <p className="mt-2 text-sm text-gray-600">{p.description}</p>
-              )}
-              <div className="flex items-baseline justify-between mt-6">
-                <span className="text-2xl font-bold text-[#1F8A3B]">
-                  {p.prix.toLocaleString("fr-FR")} FCFA
-                </span>
-                {p.duree_minutes && (
-                  <span className="text-sm text-gray-500">
-                    ~{p.duree_minutes} min
-                  </span>
-                )}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Récapitulatif du panier — n'apparaît qu'après une sélection */}
-      {choisies.length > 0 && (
-        <div className="max-w-xl p-8 mx-auto mt-12 border border-gray-200 rounded-2xl">
-          <h3 className="mb-6 text-xl font-bold">Votre demande</h3>
-
-          <ul className="pb-4 mb-4 space-y-2 border-b border-gray-100">
-            {choisies.map((p) => (
-              <li key={p.id} className="flex justify-between text-sm">
-                <span>{p.nom}</span>
-                <span className="font-medium">
-                  {p.prix.toLocaleString("fr-FR")} FCFA
-                </span>
-              </li>
-            ))}
-          </ul>
-
-          <div className="flex justify-between mb-2 text-lg font-bold">
-            <span>Total</span>
-            <span className="text-[#1F8A3B]">
-              {total.toLocaleString("fr-FR")} FCFA
-            </span>
-          </div>
-          {dureeTotale > 0 && (
-            <p className="mb-6 text-sm text-gray-500">
-              Durée estimée : environ {dureeTotale} minutes
+          {prestations.length === 0 ? (
+            <p className="p-5 mt-6 rounded-xl bg-ecume">
+              Le catalogue est en cours de mise à jour.{" "}
+              <a href={lienQuestion} target="_blank" rel="noopener noreferrer" className="font-semibold underline text-mandji">
+                Écrivez-nous sur WhatsApp
+              </a>{" "}
+              pour connaître nos tarifs.
             </p>
+          ) : (
+            <ul className="mt-6 border-t border-gray-200">
+              {prestations.map((p) => {
+                const active = selection.includes(p.id);
+                return (
+                  <li key={p.id} className="border-b border-gray-200">
+                    <button
+                      type="button"
+                      onClick={() => basculer(p.id)}
+                      aria-pressed={active}
+                      className={`flex items-start w-full gap-4 px-2 py-4 text-left transition-colors -mx-2 rounded-lg ${
+                        active ? "bg-ecume" : "active:bg-gray-50"
+                      }`}
+                    >
+                      <span
+                        aria-hidden
+                        className={`mt-0.5 flex items-center justify-center w-7 h-7 shrink-0 rounded-full border-2 text-sm font-bold transition-colors ${
+                          active ? "bg-mandji border-mandji text-white" : "border-gray-300 text-transparent"
+                        }`}
+                      >
+                        ✓
+                      </span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-lg font-semibold leading-snug">{p.nom}</span>
+                        {p.description && (
+                          <span className="block mt-0.5 text-sm text-gray-600">{p.description}</span>
+                        )}
+                      </span>
+                      <span className="text-right shrink-0">
+                        <span className="block text-lg font-bold whitespace-nowrap">{fcfa(p.prix)}</span>
+                        {p.duree_minutes && (
+                          <span className="block text-sm text-gray-500">~{p.duree_minutes} min</span>
+                        )}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </section>
+
+      {/* ÉTAPE 2 */}
+      <section
+        id="infos"
+        ref={refInfos}
+        className="px-5 pt-10 pb-16 scroll-mt-4 bg-ecume sm:px-8"
+      >
+        <div className="max-w-2xl mx-auto">
+          <h2 className="text-2xl font-bold sm:text-3xl">2. Envoyez votre demande</h2>
+
+          {/* Récapitulatif */}
+          {choisies.length === 0 ? (
+            <p className="mt-3 text-gray-600">
+              Aucune prestation choisie pour l&apos;instant.{" "}
+              <a href="#prestations" className="font-semibold underline text-mandji">
+                Revenir à l&apos;étape 1
+              </a>
+            </p>
+          ) : (
+            <div className="p-5 mt-5 bg-white rounded-2xl">
+              <ul className="space-y-1">
+                {choisies.map((p) => (
+                  <li key={p.id} className="flex justify-between gap-4">
+                    <span>{p.nom}</span>
+                    <span className="whitespace-nowrap">{fcfa(p.prix)}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="flex items-baseline justify-between pt-3 mt-3 border-t border-gray-200">
+                <span className="font-semibold">Total</span>
+                <span className="text-2xl font-extrabold text-mandji">{fcfa(total)}</span>
+              </div>
+              {duree > 0 && <p className="mt-1 text-sm text-right text-gray-500">environ {duree} minutes</p>}
+            </div>
           )}
 
-          <div className="space-y-3">
-            <input
-              type="text"
-              placeholder="Votre nom"
-              value={nom}
-              onChange={(e) => setNom(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-[#23B5D3]"
-            />
-            <input
-              type="text"
-              placeholder="Votre véhicule (ex : Toyota RAV4 blanc)"
-              value={vehicule}
-              onChange={(e) => setVehicule(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-[#23B5D3]"
-            />
-            <input
-              type="text"
-              placeholder="Créneau souhaité (ex : samedi matin)"
-              value={creneau}
-              onChange={(e) => setCreneau(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-[#23B5D3]"
-            />
+          <div className="mt-6 space-y-4">
+            <label className="block">
+              <span className="block mb-1 font-medium">Votre nom</span>
+              <input type="text" autoComplete="name" value={nom} onChange={(e) => setNom(e.target.value)} className={champ} />
+            </label>
+            <label className="block">
+              <span className="block mb-1 font-medium">Votre véhicule</span>
+              <input
+                type="text"
+                placeholder="Ex : Toyota RAV4 blanc"
+                value={vehicule}
+                onChange={(e) => setVehicule(e.target.value)}
+                className={champ}
+              />
+            </label>
+
+            <fieldset>
+              <legend className="mb-2 font-medium">Quand souhaitez-vous venir ?</legend>
+              <div className="flex flex-wrap gap-2">
+                {CRENEAUX.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    aria-pressed={!autreCreneau && creneau === c}
+                    onClick={() => {
+                      setAutreCreneau(false);
+                      setCreneau(c);
+                    }}
+                    className={`px-4 py-2 rounded-full border transition-colors ${
+                      !autreCreneau && creneau === c
+                        ? "bg-encre border-encre text-white"
+                        : "bg-white border-gray-300"
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  aria-pressed={autreCreneau}
+                  onClick={() => {
+                    setAutreCreneau(true);
+                    setCreneau("");
+                  }}
+                  className={`px-4 py-2 rounded-full border transition-colors ${
+                    autreCreneau ? "bg-encre border-encre text-white" : "bg-white border-gray-300"
+                  }`}
+                >
+                  Autre…
+                </button>
+              </div>
+              {autreCreneau && (
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="Ex : samedi vers 10 h"
+                  value={creneau}
+                  onChange={(e) => setCreneau(e.target.value)}
+                  className={`${champ} mt-3`}
+                />
+              )}
+            </fieldset>
           </div>
 
-         
-          <a
-
-            href={construireLien()}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block w-full py-4 mt-6 font-medium text-center text-white transition rounded-full bg-[#1F8A3B] hover:bg-[#176d2e]"
-          >
-            Envoyer ma demande sur WhatsApp
-          </a>
-
-          <p className="mt-4 text-xs text-center text-gray-500">
-            Pensez à joindre une photo de votre véhicule dans la conversation.
+          {choisies.length > 0 ? (
+            <a
+              href={lienWhatsApp()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-full py-4 mt-8 text-lg font-semibold text-center text-white transition-colors rounded-full bg-mandji hover:bg-mandji-fonce"
+            >
+              Envoyer ma demande sur WhatsApp
+            </a>
+          ) : (
+            <p className="p-4 mt-8 text-center text-gray-600 bg-white rounded-full">
+              Choisissez au moins une prestation pour envoyer votre demande.
+            </p>
+          )}
+          <p className="mt-4 text-sm text-center text-gray-600">
+            WhatsApp s&apos;ouvre avec votre demande déjà écrite. Ajoutez une photo de votre véhicule, puis
+            nous vous confirmons l&apos;heure.
           </p>
         </div>
-      )}
-    </section>
+      </section>
+
+      {/* Barre du bas : apparaît dès qu'une prestation est choisie */}
+      <div
+        aria-hidden={choisies.length === 0 || infosVisibles}
+        className={`fixed inset-x-0 bottom-0 z-20 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 bg-white/95 backdrop-blur border-t border-gray-200 transition-transform duration-300 ${
+          choisies.length > 0 && !infosVisibles ? "translate-y-0" : "translate-y-full"
+        }`}
+      >
+        <div className="flex items-center justify-between max-w-2xl gap-4 mx-auto">
+          <div>
+            <p className="text-sm text-gray-600">{resume}</p>
+            <p className="text-xl font-extrabold leading-tight">{fcfa(total)}</p>
+          </div>
+          <a
+            href="#infos"
+            tabIndex={choisies.length > 0 && !infosVisibles ? 0 : -1}
+            className="px-6 py-3 font-semibold text-white rounded-full bg-mandji hover:bg-mandji-fonce"
+          >
+            Continuer
+          </a>
+        </div>
+      </div>
+    </>
   );
 }

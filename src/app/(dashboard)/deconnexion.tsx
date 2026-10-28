@@ -17,7 +17,7 @@ export default function Deconnexion() {
   return (
     <button
       onClick={seDeconnecter}
-      className="px-4 py-2 text-sm text-gray-600 transition border border-gray-300 rounded-full hover:bg-gray-50"
+      className="px-3 py-2 text-sm text-gray-600 transition border border-gray-300 rounded-full shrink-0 hover:bg-gray-50"
     >
       Déconnexion
     </button>

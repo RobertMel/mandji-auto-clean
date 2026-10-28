@@ -35,7 +35,8 @@ export default function LoginPage() {
   return (
     <main className="flex items-center justify-center min-h-screen px-6 bg-white">
       <div className="w-full max-w-sm">
-        <img src="/logo.png" alt="Mandji Auto Clean" className="mx-auto mb-10 w-44" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo-serre.png" alt="Mandji Auto Clean" className="w-auto h-24 mx-auto mb-10" />
 
         <h1 className="mb-8 text-2xl font-bold text-center">Espace personnel</h1>
 
