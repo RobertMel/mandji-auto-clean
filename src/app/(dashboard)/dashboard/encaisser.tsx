@@ -54,7 +54,7 @@ export default function Encaisser({
     setErreur("");
 
     const supabase = creerClientNavigateur();
-    const { error } = await supabase.rpc("encaisser_reservation", {
+    const { data: encaissementId, error } = await supabase.rpc("encaisser_reservation", {
       p_reservation_id: reservationId,
       p_prestation_ids: selection,
       p_montant: montant,
@@ -68,8 +68,8 @@ export default function Encaisser({
       return;
     }
 
-    onFermer();
-    router.refresh();
+    // Ouvre directement le reçu
+    router.push(`/dashboard/recu/${encaissementId}`);
   };
 
   const invalide = selection.length === 0 || montant < 0 || montant > total;

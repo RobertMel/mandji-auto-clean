@@ -20,7 +20,7 @@ export default async function DashboardPage() {
   const { data: reservations } = await supabase
     .from("reservations")
     .select(
-      "id, statut, notes, laveur_id, debut_lavage, fin_lavage, canal, encaissements(id)"
+      "id, statut, notes, laveur_id, debut_lavage, fin_lavage, canal, encaissements(id, numero_recu, montant, paye_le)"
     )
     .order("created_at", { ascending: true });
 
@@ -39,12 +39,14 @@ export default async function DashboardPage() {
 
   return (
     <FileAttente
-      reservationsInitiales={(reservations ?? []).map((r) => ({
-        ...r,
-        encaissee: Array.isArray(r.encaissements)
-          ? r.encaissements.length > 0
-          : !!r.encaissements,
-      }))}
+      reservationsInitiales={(reservations ?? []).map((r) => {
+        const liste = Array.isArray(r.encaissements)
+          ? r.encaissements
+          : r.encaissements
+            ? [r.encaissements]
+            : [];
+        return { ...r, encaissement: liste[0] ?? null };
+      })}
       monId={user?.id ?? ""}
       monRole={monRole}
       prestations={prestations ?? []}

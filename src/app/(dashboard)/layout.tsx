@@ -24,7 +24,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-white">
-      <header className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+      <header className="flex items-center justify-between px-6 py-4 border-b border-gray-100 print:hidden">
         <div className="flex items-center gap-4">
           <img src="/logo.png" alt="Mandji" className="h-10" />
           <nav className="hidden gap-6 text-sm font-medium sm:flex">

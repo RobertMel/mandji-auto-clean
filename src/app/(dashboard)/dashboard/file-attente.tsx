@@ -4,6 +4,7 @@
 import NouveauVehicule from "./nouveau-vehicule";
 import Encaisser, { type PrestationCatalogue } from "./encaisser";
 import { useState } from "react";
+import { fcfa, formatNumeroRecu } from "@/lib/config";
 import { useRouter } from "next/navigation";
 import { creerClientNavigateur } from "@/lib/supabase/client";
 
@@ -16,7 +17,12 @@ type Reservation = {
   debut_lavage: string | null;
   fin_lavage: string | null;
   canal: string | null;
-  encaissee: boolean;
+  encaissement: {
+    id: string;
+    numero_recu: number | null;
+    montant: number;
+    paye_le: string;
+  } | null;
 };
 
 type Laveur = { id: string; nom_complet: string };
@@ -91,8 +97,15 @@ export default function FileAttente({
   const enAttente = reservations.filter((r) => r.statut === "en_attente");
   const enCours = reservations.filter((r) => r.statut === "en_cours");
   const aEncaisser = reservations.filter(
-    (r) => r.statut === "terminee" && !r.encaissee
+    (r) => r.statut === "terminee" && !r.encaissement
   );
+  const encaissesAujourdhui = reservations
+    .filter(
+      (r) =>
+        r.encaissement &&
+        new Date(r.encaissement.paye_le).toDateString() === new Date().toDateString()
+    )
+    .sort((a, b) => b.encaissement!.paye_le.localeCompare(a.encaissement!.paye_le));
   const termineesAujourdhui = reservations.filter(
     (r) =>
       r.statut === "terminee" &&
@@ -227,6 +240,35 @@ export default function FileAttente({
               ))}
             </div>
           )}
+        </section>
+      )}
+
+      {/* ENCAISSÉS AUJOURD'HUI — accès aux reçus */}
+      {peutEncaisser && encaissesAujourdhui.length > 0 && (
+        <section className="mb-12">
+          <h2 className="mb-4 text-xl font-bold">
+            Encaissés aujourd&apos;hui{" "}
+            <span className="text-gray-400">({encaissesAujourdhui.length})</span>
+          </h2>
+          <div className="space-y-2">
+            {encaissesAujourdhui.map((r) => (
+              <a
+                key={r.id}
+                href={`/dashboard/recu/${r.encaissement!.id}`}
+                className="flex items-center justify-between p-3 text-sm border border-gray-200 rounded-xl hover:border-[#23B5D3]"
+              >
+                <span>
+                  <span className="text-gray-400">
+                    n° {formatNumeroRecu(r.encaissement!.numero_recu)}
+                  </span>{" "}
+                  · {r.notes ?? "Véhicule"}
+                </span>
+                <span className="font-medium">
+                  {fcfa(r.encaissement!.montant)} <span className="text-[#23B5D3]">→ Reçu</span>
+                </span>
+              </a>
+            ))}
+          </div>
         </section>
       )}
 
