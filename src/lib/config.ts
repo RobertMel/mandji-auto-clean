@@ -1,13 +1,13 @@
 // src/lib/config.ts
 
 // Numéro WhatsApp de Mandji Auto Clean (241 + numéro, sans + ni espaces)
-export const WHATSAPP_NUMBER = "24174277124";
+export const WHATSAPP_NUMBER = "241066598686";
 
 // Infos affichées sur les reçus
 export const ENTREPRISE = {
   nom: "Mandji Auto Clean",
   ville: "Port-Gentil, Gabon",
-  telephone: "+241 74 27 71 24",
+  telephone: "+241 066 59 86 86",
 };
 
 // Libellés des modes de paiement
