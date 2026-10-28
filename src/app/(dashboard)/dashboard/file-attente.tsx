@@ -1,6 +1,7 @@
 // src/app/(dashboard)/dashboard/file-attente.tsx
 "use client";
 
+import Link from "next/link";
 import NouveauVehicule from "./nouveau-vehicule";
 import Encaisser, { type PrestationCatalogue } from "./encaisser";
 import { useState } from "react";
@@ -252,7 +253,7 @@ export default function FileAttente({
           </h2>
           <div className="space-y-2">
             {encaissesAujourdhui.map((r) => (
-              <a
+              <Link
                 key={r.id}
                 href={`/dashboard/recu/${r.encaissement!.id}`}
                 className="flex items-center justify-between p-3 text-sm border border-gray-200 rounded-xl hover:border-[#23B5D3]"
@@ -266,7 +267,7 @@ export default function FileAttente({
                 <span className="font-medium">
                   {fcfa(r.encaissement!.montant)} <span className="text-[#23B5D3]">→ Reçu</span>
                 </span>
-              </a>
+              </Link>
             ))}
           </div>
         </section>

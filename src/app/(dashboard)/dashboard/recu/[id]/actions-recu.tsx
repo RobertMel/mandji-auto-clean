@@ -1,15 +1,11 @@
 // src/app/(dashboard)/dashboard/recu/[id]/actions-recu.tsx
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { creerClientNavigateur } from "@/lib/supabase/client";
-import {
-  PAYS,
-  decomposerNumero,
-  drapeau,
-  formaterInternational,
-  numeroWhatsApp,
-} from "@/lib/config";
+import { decomposerNumero, numeroWhatsApp } from "@/lib/config";
+import ChampTelephone from "../../../champ-telephone";
 
 export default function ActionsRecu({
   reservationId,
@@ -26,8 +22,6 @@ export default function ActionsRecu({
   const [telephone, setTelephone] = useState(initial.local);
 
   const numero = numeroWhatsApp(telephone, codePays);
-  const saisieInternationale = /^\s*(\+|00)/.test(telephone);
-  const pays = PAYS.find((p) => p.code === codePays) ?? PAYS[0];
 
   const envoyer = async () => {
     if (!numero) return;
@@ -40,53 +34,32 @@ export default function ActionsRecu({
       "noopener,noreferrer"
     );
 
-    // Mémorise le numéro du client (format international) sur la réservation
+    // Rattache la réservation (et le véhicule) à la fiche du client
     if (reservationId && numero !== telephoneInitial) {
       const supabase = creerClientNavigateur();
-      await supabase
-        .from("reservations")
-        .update({ telephone_client: numero })
-        .eq("id", reservationId);
+      await supabase.rpc("associer_client_reservation", {
+        p_reservation_id: reservationId,
+        p_telephone: numero,
+      });
     }
   };
 
   return (
     <div className="mb-8 space-y-4 print:hidden">
-      <a href="/dashboard" className="text-sm text-gray-500 hover:text-[#1F8A3B]">
+      <Link href="/dashboard" className="text-sm text-gray-500 hover:text-[#1F8A3B]">
         ← Retour aux lavages
-      </a>
+      </Link>
 
       <div className="p-5 border border-gray-200 rounded-xl bg-gray-50">
         <p className="mb-2 text-sm font-medium">Envoyer le reçu au client</p>
 
-        <div className="flex gap-2">
-          {/* Pays / indicatif */}
-          <select
-            value={codePays}
-            onChange={(e) => setCodePays(e.target.value)}
-            disabled={saisieInternationale}
-            aria-label="Pays du numéro"
-            className="w-28 px-2 py-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-[#23B5D3] disabled:opacity-40"
-          >
-            {PAYS.map((p) => (
-              <option key={p.code} value={p.code}>
-                {drapeau(p.code)} +{p.indicatif} {p.nom}
-              </option>
-            ))}
-          </select>
-
-          <input
-            type="tel"
-            inputMode="tel"
-            placeholder={
-              pays.garderZero ? "Ex : 06 14 08 07" : "Numéro (ou +XX… pour un autre pays)"
-            }
-            value={telephone}
-            onChange={(e) => setTelephone(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && envoyer()}
-            className="flex-1 min-w-0 px-3 py-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-[#23B5D3]"
-          />
-        </div>
+        <ChampTelephone
+          telephone={telephone}
+          setTelephone={setTelephone}
+          codePays={codePays}
+          setCodePays={setCodePays}
+          onEntree={envoyer}
+        />
 
         <button
           onClick={envoyer}
@@ -95,16 +68,7 @@ export default function ActionsRecu({
         >
           Envoyer sur WhatsApp
         </button>
-
-        {telephone && !numero && (
-          <p className="mt-2 text-xs text-red-600">Numéro incomplet.</p>
-        )}
-        {numero && (
-          <p className="mt-2 text-xs text-gray-500">
-            Envoi au {formaterInternational(numero)}
-          </p>
-        )}
-        <p className="mt-1 text-xs text-gray-400">
+        <p className="mt-2 text-xs text-gray-400">
           Pays absent de la liste ? Tapez le numéro complet avec + (ex : +44 7…).
         </p>
       </div>
