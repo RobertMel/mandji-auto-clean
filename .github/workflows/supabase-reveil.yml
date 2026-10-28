@@ -1,0 +1,37 @@
+# Garde la base Supabase (offre gratuite) active.
+# Supabase met en pause les projets gratuits sans activité pendant 7 jours ;
+# quelques requêtes par jour suffisent à l'éviter.
+# Cette tâche lit le catalogue public des prestations, deux fois par jour.
+name: Réveil Supabase
+
+on:
+  schedule:
+    - cron: "23 6 * * *"   # 07 h 23 au Gabon
+    - cron: "47 17 * * *"  # 18 h 47 au Gabon
+  workflow_dispatch: {}     # bouton « Run workflow » pour lancer à la main
+
+jobs:
+  reveil:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Lire le catalogue des prestations
+        env:
+          # Adresse et clé publiques du projet (les mêmes que celles du site,
+          # visibles par tout visiteur) : aucune donnée sensible ici.
+          SUPABASE_URL: https://lrxieyboofmhhzqlskbo.supabase.co
+          SUPABASE_CLE_PUBLIQUE: sb_publishable_xt_2bhh9W2V-ChnZ6fmpXQ_STrzvNWV
+        run: |
+          for i in 1 2 3; do
+            code=$(curl -s -o /tmp/reponse.json -w "%{http_code}" \
+              "$SUPABASE_URL/rest/v1/prestations?select=id&limit=1" \
+              -H "apikey: $SUPABASE_CLE_PUBLIQUE")
+            echo "Requête $i : HTTP $code"
+            if [ "$code" != "200" ]; then
+              echo "::error::Supabase ne répond pas (HTTP $code). Le projet est peut-être en pause : relance-le sur supabase.com."
+              cat /tmp/reponse.json
+              exit 1
+            fi
+            sleep 5
+          done
+          echo "Supabase est actif."
