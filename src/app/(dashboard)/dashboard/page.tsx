@@ -5,20 +5,50 @@ import FileAttente from "./file-attente";
 export default async function DashboardPage() {
   const supabase = await creerClientServeur();
 
-  // On lit les réservations du jour qui ne sont pas encore terminées,
-  // + celles terminées aujourd'hui (pour le compteur en bas).
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Rôle de l'utilisateur (enregistrement + encaissement)
+  const { data: profil } = await supabase
+    .from("profils")
+    .select("role")
+    .eq("id", user?.id ?? "")
+    .single();
+
+  const monRole = profil?.role ?? "laveur";
+  const peutEncaisser = monRole === "gerante" || monRole === "admin";
+
   const { data: reservations } = await supabase
     .from("reservations")
-    .select("id, statut, notes, laveur_id, debut_lavage, fin_lavage, canal")
+    .select(
+      "id, statut, notes, laveur_id, debut_lavage, fin_lavage, canal, encaissements(id)"
+    )
     .order("created_at", { ascending: true });
 
-  // Qui suis-je ? (pour n'activer "Terminé" que sur mes lavages)
-  const { data: { user } } = await supabase.auth.getUser();
+  // Catalogue et noms des laveurs : utiles seulement pour l'encaissement
+  const { data: prestations } = peutEncaisser
+    ? await supabase
+        .from("prestations")
+        .select("id, nom, prix")
+        .eq("active", true)
+        .order("prix", { ascending: true })
+    : { data: [] };
+
+  const { data: laveurs } = peutEncaisser
+    ? await supabase.from("profils").select("id, nom_complet")
+    : { data: [] };
 
   return (
     <FileAttente
-      reservationsInitiales={reservations ?? []}
+      reservationsInitiales={(reservations ?? []).map((r) => ({
+        ...r,
+        encaissee: Array.isArray(r.encaissements)
+          ? r.encaissements.length > 0
+          : !!r.encaissements,
+      }))}
       monId={user?.id ?? ""}
+      monRole={monRole}
+      prestations={prestations ?? []}
+      laveurs={laveurs ?? []}
     />
   );
 }

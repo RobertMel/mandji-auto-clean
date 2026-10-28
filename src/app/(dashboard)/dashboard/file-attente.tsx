@@ -1,9 +1,12 @@
 // src/app/(dashboard)/dashboard/file-attente.tsx
 "use client";
 
+import NouveauVehicule from "./nouveau-vehicule";
+import Encaisser, { type PrestationCatalogue } from "./encaisser";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { creerClientNavigateur } from "@/lib/supabase/client";
+
 
 type Reservation = {
   id: string;
@@ -13,17 +16,36 @@ type Reservation = {
   debut_lavage: string | null;
   fin_lavage: string | null;
   canal: string | null;
+  encaissee: boolean;
 };
+
+type Laveur = { id: string; nom_complet: string };
+
+const heure = (iso: string | null) =>
+  iso
+    ? new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+    : "";
 
 export default function FileAttente({
   reservationsInitiales,
   monId,
+  monRole,
+  prestations,
+  laveurs,
 }: {
   reservationsInitiales: Reservation[];
   monId: string;
+  monRole: string;
+  prestations: PrestationCatalogue[];
+  laveurs: Laveur[];
 }) {
-  const [reservations, setReservations] = useState(reservationsInitiales);
+  // On lit directement les props : après router.refresh(), elles sont à jour.
+  const reservations = reservationsInitiales;
   const [chargement, setChargement] = useState<string | null>(null);
+  const [encaissement, setEncaissement] = useState<string | null>(null);
+  const peutEncaisser = monRole === "gerante" || monRole === "admin";
+  const nomLaveur = (id: string | null) =>
+    laveurs.find((l) => l.id === id)?.nom_complet ?? "—";
   const router = useRouter();
   const supabase = creerClientNavigateur();
 
@@ -68,6 +90,9 @@ export default function FileAttente({
 
   const enAttente = reservations.filter((r) => r.statut === "en_attente");
   const enCours = reservations.filter((r) => r.statut === "en_cours");
+  const aEncaisser = reservations.filter(
+    (r) => r.statut === "terminee" && !r.encaissee
+  );
   const termineesAujourdhui = reservations.filter(
     (r) =>
       r.statut === "terminee" &&
@@ -77,7 +102,15 @@ export default function FileAttente({
 
   return (
     <main className="max-w-4xl px-6 py-10 mx-auto">
+      {/* Enregistrement rapide — gérante et admin uniquement */}
+      {(monRole === "gerante" || monRole === "admin") && (
+        <div className="mb-8">
+          <NouveauVehicule />
+        </div>
+      )}
+
       {/* EN ATTENTE */}
+
       <section className="mb-12">
         <h2 className="mb-4 text-xl font-bold">
           En attente{" "}
@@ -151,9 +184,55 @@ export default function FileAttente({
         )}
       </section>
 
+      {/* À ENCAISSER — gérante et admin uniquement */}
+      {peutEncaisser && (
+        <section className="mb-12">
+          <h2 className="mb-4 text-xl font-bold">
+            À encaisser{" "}
+            <span className="text-gray-400">({aEncaisser.length})</span>
+          </h2>
+
+          {aEncaisser.length === 0 ? (
+            <p className="text-gray-500">Tout est encaissé.</p>
+          ) : (
+            <div className="space-y-3">
+              {aEncaisser.map((r) => (
+                <div key={r.id} className="p-4 border border-orange-200 rounded-xl bg-orange-50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">{r.notes ?? "Véhicule"}</p>
+                      <p className="text-xs text-gray-500">
+                        Lavé par {nomLaveur(r.laveur_id)}
+                        {r.fin_lavage && ` · terminé à ${heure(r.fin_lavage)}`}
+                      </p>
+                    </div>
+                    {encaissement !== r.id && (
+                      <button
+                        onClick={() => setEncaissement(r.id)}
+                        className="px-5 py-2 text-sm font-medium text-white rounded-full bg-[#1F8A3B] hover:bg-[#176d2e]"
+                      >
+                        Encaisser
+                      </button>
+                    )}
+                  </div>
+                  {encaissement === r.id && (
+                    <Encaisser
+                      reservationId={r.id}
+                      vehicule={r.notes ?? "Véhicule"}
+                      prestations={prestations}
+                      onFermer={() => setEncaissement(null)}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
       {/* COMPTEUR DU JOUR */}
       <section className="p-6 text-center border border-gray-200 rounded-xl bg-gray-50">
-        <p className="text-sm text-gray-500">Lavages terminés aujourd'hui</p>
+        <p className="text-sm text-gray-500">Lavages terminés aujourd&apos;hui</p>
         <p className="text-3xl font-bold text-[#1F8A3B]">
           {termineesAujourdhui.length}
         </p>

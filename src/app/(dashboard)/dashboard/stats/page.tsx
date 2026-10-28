@@ -34,10 +34,16 @@ export default async function StatsPage() {
     .eq("statut", "terminee")
     .not("fin_lavage", "is", null);
 
+  // Encaissements (chiffre d'affaires)
+  const { data: encaissements } = await supabase
+    .from("encaissements")
+    .select("montant, mode_paiement, paye_le");
+
   return (
     <StatsClient
       laveurs={laveurs ?? []}
       lavages={lavages ?? []}
+      encaissements={encaissements ?? []}
     />
   );
 }
