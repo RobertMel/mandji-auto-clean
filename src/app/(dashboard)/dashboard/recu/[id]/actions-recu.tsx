@@ -3,6 +3,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { creerClientNavigateur } from "@/lib/supabase/client";
 import { decomposerNumero, numeroWhatsApp } from "@/lib/config";
 import ChampTelephone from "../../../champ-telephone";
@@ -11,11 +12,33 @@ export default function ActionsRecu({
   reservationId,
   telephoneInitial,
   texte,
+  resume,
 }: {
   reservationId: string | null;
   telephoneInitial: string;
   texte: string;
+  resume: string;
 }) {
+  const router = useRouter();
+  const [suppression, setSuppression] = useState(false);
+
+  // Supprime le lavage et son encaissement (retiré de la compta)
+  const supprimerLavage = async () => {
+    if (!reservationId) return;
+    if (
+      !window.confirm(
+        `Supprimer ce lavage (${resume}) ?\n\nL'encaissement sera retiré de la compta. Action définitive.`
+      )
+    )
+      return;
+    setSuppression(true);
+    const supabase = creerClientNavigateur();
+    const { error } = await supabase.rpc("supprimer_lavage", { p_reservation_id: reservationId });
+    setSuppression(false);
+    if (error) return alert("Impossible de supprimer : " + error.message);
+    router.push("/dashboard");
+    router.refresh();
+  };
   // Si un numéro est déjà enregistré, on retrouve son pays
   const initial = decomposerNumero(telephoneInitial);
   const [codePays, setCodePays] = useState(initial.codePays);
@@ -79,6 +102,16 @@ export default function ActionsRecu({
       >
         Imprimer / enregistrer en PDF
       </button>
+
+      {reservationId && (
+        <button
+          onClick={supprimerLavage}
+          disabled={suppression}
+          className="w-full py-2 text-sm text-red-600 rounded-full hover:bg-red-50 disabled:opacity-50"
+        >
+          {suppression ? "..." : "Supprimer ce lavage"}
+        </button>
+      )}
     </div>
   );
 }

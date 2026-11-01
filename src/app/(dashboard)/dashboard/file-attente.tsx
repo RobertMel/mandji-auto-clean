@@ -95,6 +95,32 @@ export default function FileAttente({
     setChargement(null);
   };
 
+  // Gérante / admin : supprimer un lavage (erreur de saisie, client parti...).
+  // S'il était encaissé, l'encaissement est retiré de la compta.
+  const supprimer = async (r: Reservation) => {
+    const message = r.encaissement
+      ? `Supprimer « ${r.notes ?? "ce lavage"} » ?\n\nIl a été encaissé (${fcfa(r.encaissement.montant)}, reçu n° ${formatNumeroRecu(r.encaissement.numero_recu)}) : ce montant sera retiré de la compta. Action définitive.`
+      : `Supprimer « ${r.notes ?? "ce lavage"} » ? Action définitive.`;
+    if (!window.confirm(message)) return;
+    setChargement(r.id);
+    const { error } = await supabase.rpc("supprimer_lavage", { p_reservation_id: r.id });
+    setChargement(null);
+    if (error) alert("Impossible de supprimer : " + error.message);
+    else router.refresh();
+  };
+
+  const boutonSupprimer = (r: Reservation) =>
+    peutEncaisser && (
+      <button
+        onClick={() => supprimer(r)}
+        disabled={chargement === r.id}
+        title="Supprimer ce lavage"
+        className="px-3 py-2 text-sm text-red-600 rounded-full hover:bg-red-50 disabled:opacity-50"
+      >
+        Supprimer
+      </button>
+    );
+
   const enAttente = reservations.filter((r) => r.statut === "en_attente");
   const enCours = reservations.filter((r) => r.statut === "en_cours");
   const aEncaisser = reservations.filter(
@@ -138,7 +164,7 @@ export default function FileAttente({
             {enAttente.map((r) => (
               <div
                 key={r.id}
-                className="flex items-center justify-between p-4 border border-gray-200 rounded-xl"
+                className="flex items-center justify-between gap-3 p-4 border border-gray-200 rounded-xl"
               >
                 <div>
                   <p className="font-medium">{r.notes ?? "Véhicule"}</p>
@@ -146,13 +172,16 @@ export default function FileAttente({
                     {r.canal}
                   </p>
                 </div>
-                <button
-                  onClick={() => prendre(r.id)}
-                  disabled={chargement === r.id}
-                  className="px-5 py-2 text-sm font-medium text-white rounded-full bg-[#1F8A3B] hover:bg-[#176d2e] disabled:opacity-50"
-                >
-                  {chargement === r.id ? "..." : "Je prends"}
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  {boutonSupprimer(r)}
+                  <button
+                    onClick={() => prendre(r.id)}
+                    disabled={chargement === r.id}
+                    className="px-5 py-2 text-sm font-medium text-white rounded-full bg-[#1F8A3B] hover:bg-[#176d2e] disabled:opacity-50"
+                  >
+                    {chargement === r.id ? "..." : "Je prends"}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -174,7 +203,7 @@ export default function FileAttente({
               return (
                 <div
                   key={r.id}
-                  className="flex items-center justify-between p-4 border rounded-xl border-[#23B5D3] bg-cyan-50"
+                  className="flex items-center justify-between gap-3 p-4 border rounded-xl border-[#23B5D3] bg-cyan-50"
                 >
                   <div>
                     <p className="font-medium">{r.notes ?? "Véhicule"}</p>
@@ -182,15 +211,18 @@ export default function FileAttente({
                       {estAMoi ? "Vous lavez ce véhicule" : "Pris par un collègue"}
                     </p>
                   </div>
-                  {estAMoi && (
-                    <button
-                      onClick={() => terminer(r.id)}
-                      disabled={chargement === r.id}
-                      className="px-5 py-2 text-sm font-medium text-white rounded-full bg-[#23B5D3] hover:bg-[#1a91ab] disabled:opacity-50"
-                    >
-                      {chargement === r.id ? "..." : "Terminé"}
-                    </button>
-                  )}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {boutonSupprimer(r)}
+                    {estAMoi && (
+                      <button
+                        onClick={() => terminer(r.id)}
+                        disabled={chargement === r.id}
+                        className="px-5 py-2 text-sm font-medium text-white rounded-full bg-[#23B5D3] hover:bg-[#1a91ab] disabled:opacity-50"
+                      >
+                        {chargement === r.id ? "..." : "Terminé"}
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -221,12 +253,15 @@ export default function FileAttente({
                       </p>
                     </div>
                     {encaissement !== r.id && (
-                      <button
-                        onClick={() => setEncaissement(r.id)}
-                        className="px-5 py-2 text-sm font-medium text-white rounded-full bg-[#1F8A3B] hover:bg-[#176d2e]"
-                      >
-                        Encaisser
-                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {boutonSupprimer(r)}
+                        <button
+                          onClick={() => setEncaissement(r.id)}
+                          className="px-5 py-2 text-sm font-medium text-white rounded-full bg-[#1F8A3B] hover:bg-[#176d2e]"
+                        >
+                          Encaisser
+                        </button>
+                      </div>
                     )}
                   </div>
                   {encaissement === r.id && (
@@ -253,10 +288,10 @@ export default function FileAttente({
           </h2>
           <div className="space-y-2">
             {encaissesAujourdhui.map((r) => (
+              <div key={r.id} className="flex items-center gap-1">
               <Link
-                key={r.id}
                 href={`/dashboard/recu/${r.encaissement!.id}`}
-                className="flex items-center justify-between p-3 text-sm border border-gray-200 rounded-xl hover:border-[#23B5D3]"
+                className="flex items-center justify-between flex-1 min-w-0 p-3 text-sm border border-gray-200 rounded-xl hover:border-[#23B5D3]"
               >
                 <span>
                   <span className="text-gray-400">
@@ -268,6 +303,8 @@ export default function FileAttente({
                   {fcfa(r.encaissement!.montant)} <span className="text-[#23B5D3]">→ Reçu</span>
                 </span>
               </Link>
+              {boutonSupprimer(r)}
+              </div>
             ))}
           </div>
         </section>

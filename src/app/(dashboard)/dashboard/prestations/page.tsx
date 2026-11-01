@@ -8,7 +8,7 @@ export default async function PrestationsPage() {
   // Toutes les prestations, y compris masquées
   const { data: prestations } = await supabase
     .from("prestations")
-    .select("id, nom, description, prix, duree_minutes, active")
+    .select("id, nom, description, prix, duree_minutes, active, part_laveur")
     .order("active", { ascending: false })
     .order("prix", { ascending: true });
 

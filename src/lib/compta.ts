@@ -2,6 +2,7 @@
 // Calculs de compta (purs, sans accès à la base). Dates au format AAAA-MM-JJ.
 
 export const CATEGORIES_DEPENSES: Record<string, string> = {
+  parts_laveurs: "Part des laveurs", // automatique (prestations encaissées)
   produits: "Produits d'entretien", // automatique (achats du stock)
   salaires: "Salaires",
   eau: "Eau",
@@ -22,7 +23,9 @@ export type Mouvement = {
   libelle: string;
   montant: number; // toujours positif
   mode: string | null;
-  source: "encaissement" | "achat" | "depense";
+  source: "encaissement" | "achat" | "depense" | "part";
+  laveurId?: string | null; // part des laveurs : qui a lavé
+  nbPrestations?: number; // part des laveurs : nombre de prestations
   lien: string | null; // reçu, page stock...
 };
 

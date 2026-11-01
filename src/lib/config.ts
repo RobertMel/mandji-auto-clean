@@ -143,3 +143,23 @@ export function formaterInternational(international: string): string {
   const groupes = local.replace(/\B(?=(\d{2})+$)/g, " ");
   return `+${pays.indicatif} ${groupes}`;
 }
+
+// ---------------------------------------------------------------------
+//  Part du laveur (grille Mandji : prix de la prestation -> part)
+//  Sert à pré-remplir la part quand on crée ou modifie une prestation ;
+//  la part réellement utilisée est celle enregistrée sur la prestation.
+// ---------------------------------------------------------------------
+export const GRILLE_PART_LAVEUR: Record<number, number> = {
+  2000: 1000,
+  3000: 1000,
+  5000: 2000,
+  6500: 2000,
+  7000: 3000,
+  10000: 5000,
+  15000: 5000,
+  20000: 5000,
+  30000: 10000,
+};
+
+export const partSelonGrille = (prix: number): number | null =>
+  GRILLE_PART_LAVEUR[prix] ?? null;

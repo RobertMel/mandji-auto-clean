@@ -109,6 +109,7 @@ export default async function RecuPage({
         reservationId={resa?.id ?? null}
         telephoneInitial={resa?.telephone_client ?? ""}
         texte={texteWhatsApp}
+        resume={`reçu n° ${numero}, ${fcfa(enc.montant)}`}
       />
 
       {/* Le reçu */}
