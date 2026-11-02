@@ -5,7 +5,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { creerClientNavigateur } from "@/lib/supabase/client";
-import { MODES_PAIEMENT, fcfa, formatNumeroRecu } from "@/lib/config";
+import { MODES_PAIEMENT, fcfa, formatNumeroRecu, libelleLaveur } from "@/lib/config";
 import { enCl, libelleFormat } from "@/lib/stock";
 import {
   CATEGORIES_DEPENSES,
@@ -24,19 +24,24 @@ import {
 } from "@/lib/compta";
 import Graphique, { COULEUR_DEPENSES } from "./graphique";
 import FormulaireDepense from "./formulaire-depense";
+import FacturesARegler from "./factures-a-regler";
 
 export type DonneesBrutes = {
   encaissements: {
     id: string;
     numero_recu: number | null;
     montant: number;
-    mode_paiement: string;
-    paye_le: string;
+    mode_paiement: string | null;
+    paye_le: string | null;
+    statut: string; // "paye" ou "a_venir" (facture à régler)
+    echeance: string | null;
     reservation: {
       notes: string | null;
       canal: string | null;
       laveur_id: string | null;
+      fin_lavage: string | null;
       reservation_prestations: { part_laveur: number }[];
+      client: { id: string; nom: string; prenom: string | null; entreprise: boolean } | null;
     } | null;
   }[];
   achats: {
@@ -57,7 +62,7 @@ export type DonneesBrutes = {
     montant: number;
     mode_paiement: string;
   }[];
-  equipe: { id: string; nom_complet: string; role: string }[];
+  equipe: { id: string; nom_complet: string; role: string; surnom: string | null }[];
 };
 
 const LIBELLES_PERIODES: Record<TypePeriode, string> = {
@@ -74,12 +79,19 @@ const libelleMode = (m: string | null) => (m ? MODES_PAIEMENT[m] ?? m : "");
 const dateFr = (iso: string) =>
   new Date(iso + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
 
-// Regroupe les trois sources en une seule liste de mouvements
-function construireMouvements(d: DonneesBrutes): Mouvement[] {
-  const nom = (id: string | null) =>
-    d.equipe.find((p) => p.id === id)?.nom_complet ?? "Laveur non renseigné";
+// Regroupe les trois sources en une seule liste de mouvements.
+// Une facture « à venir » (entreprise payant en fin de mois) n'est une
+// entrée qu'une fois payée ; en mode prévision elle compte à son échéance.
+// La part du laveur, elle, est due dès le lavage.
+function construireMouvements(d: DonneesBrutes, prevision: boolean): Mouvement[] {
+  const nom = (id: string | null) => {
+    const p = d.equipe.find((x) => x.id === id);
+    return p ? libelleLaveur(p) : "Laveur non renseigné";
+  };
+  const dateLavage = (e: DonneesBrutes["encaissements"][number]) =>
+    dateLocale(e.reservation?.fin_lavage ?? e.paye_le ?? new Date().toISOString());
 
-  // Part des laveurs : une ligne par lavage encaissé (somme de ses prestations)
+  // Part des laveurs : une ligne par lavage (somme de ses prestations)
   const parts = d.encaissements
     .map<Mouvement | null>((e) => {
       const lignes = e.reservation?.reservation_prestations ?? [];
@@ -88,7 +100,7 @@ function construireMouvements(d: DonneesBrutes): Mouvement[] {
       const laveurId = e.reservation?.laveur_id ?? null;
       return {
         id: `${e.id}-part`,
-        date: dateLocale(e.paye_le),
+        date: dateLavage(e),
         type: "depense",
         categorie: "parts_laveurs",
         libelle: `${nom(laveurId)} — reçu n° ${formatNumeroRecu(e.numero_recu)}`,
@@ -104,19 +116,25 @@ function construireMouvements(d: DonneesBrutes): Mouvement[] {
 
   return [
     ...parts,
-    ...d.encaissements.map<Mouvement>((e) => ({
-      id: e.id,
-      date: dateLocale(e.paye_le),
-      type: "entree",
-      categorie: "lavages",
-      libelle: `Reçu n° ${formatNumeroRecu(e.numero_recu)}${e.reservation?.notes ? ` — ${e.reservation.notes}` : ""}${
-        e.reservation?.canal === "hors_site" ? " (hors site)" : ""
-      }`,
-      montant: e.montant,
-      mode: e.mode_paiement,
-      source: "encaissement",
-      lien: `/dashboard/recu/${e.id}`,
-    })),
+    ...d.encaissements
+      .filter((e) => e.statut === "paye" || prevision)
+      .map<Mouvement>((e) => {
+        const aVenir = e.statut !== "paye";
+        return {
+          id: e.id,
+          date: aVenir ? (e.echeance ?? dateLavage(e)) : dateLocale(e.paye_le!),
+          type: "entree",
+          categorie: "lavages",
+          libelle: `Facture n° ${formatNumeroRecu(e.numero_recu)}${e.reservation?.notes ? ` — ${e.reservation.notes}` : ""}${
+            e.reservation?.canal === "hors_site" ? " (hors site)" : ""
+          }${aVenir ? " — à venir" : ""}`,
+          montant: e.montant,
+          mode: e.mode_paiement,
+          source: "encaissement",
+          lien: `/dashboard/recu/${e.id}`,
+          prevision: aVenir,
+        };
+      }),
     ...d.achats.map<Mouvement>((a) => ({
       id: a.id,
       date: a.achete_le,
@@ -164,8 +182,16 @@ export default function Compta({ donnees }: { donnees: DonneesBrutes }) {
   const [erreur, setErreur] = useState("");
   // Bénéfice après (par défaut) ou avant la part des laveurs
   const [apresParts, setApresParts] = useState(true);
+  // Prévision : compter aussi les factures pas encore payées (à leur échéance)
+  const [prevision, setPrevision] = useState(false);
 
-  const tous = construireMouvements(donnees);
+  const tous = construireMouvements(donnees, prevision);
+  const facturesAVenir = donnees.encaissements.filter((e) => e.statut !== "paye");
+  const totalAVenir = facturesAVenir.reduce((s, e) => s + e.montant, 0);
+  const aujourdhuiIso = versIso(new Date());
+  const totalEchu = facturesAVenir
+    .filter((e) => e.echeance && e.echeance < aujourdhuiIso)
+    .reduce((s, e) => s + e.montant, 0);
   const mouvements = apresParts ? tous : tous.filter((m) => m.source !== "part");
   const periode = type === "perso" ? perso : periodeCourante(type);
   const precedente = periodePrecedente(type, periode);
@@ -189,7 +215,10 @@ export default function Compta({ donnees }: { donnees: DonneesBrutes }) {
       const lignes = partsPeriode.filter((m) => (m.laveurId ?? "") === id);
       return {
         id,
-        nom: donnees.equipe.find((p) => p.id === id)?.nom_complet ?? "Laveur non renseigné",
+        nom: (() => {
+          const p = donnees.equipe.find((x) => x.id === id);
+          return p ? libelleLaveur(p) : "Laveur non renseigné";
+        })(),
         lavages: lignes.length,
         prestations: lignes.reduce((s, m) => s + (m.nbPrestations ?? 0), 0),
         montant: lignes.reduce((s, m) => s + m.montant, 0),
@@ -308,13 +337,30 @@ export default function Compta({ donnees }: { donnees: DonneesBrutes }) {
           </button>
         ))}
       </div>
+      <label className="inline-flex items-center gap-2 mb-4 ml-0 text-sm cursor-pointer sm:ml-4">
+        <input
+          type="checkbox"
+          checked={prevision}
+          onChange={(e) => setPrevision(e.target.checked)}
+          className="w-4 h-4 accent-[#1F8A3B]"
+        />
+        Prévision : inclure les factures à venir
+      </label>
 
       {/* Chiffres clés */}
-      <div className="grid gap-4 mb-10 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 mb-10 sm:grid-cols-2 lg:grid-cols-5">
         <div className="p-5 border border-gray-200 rounded-xl">
-          <p className="text-sm text-gray-500">Entrées</p>
+          <p className="text-sm text-gray-500">Entrées{prevision && " (avec prévision)"}</p>
           <p className="text-2xl font-bold">{fcfa(t.entrees)}</p>
           <Variation actuel={t.entrees} precedent={tPrec.entrees} />
+        </div>
+        <div className="p-5 border border-orange-200 rounded-xl bg-orange-50">
+          <p className="text-sm text-gray-500">À venir</p>
+          <p className="text-2xl font-bold text-orange-700">{fcfa(totalAVenir)}</p>
+          <p className="text-xs text-gray-500">
+            {facturesAVenir.length} facture{facturesAVenir.length > 1 ? "s" : ""} à régler
+            {totalEchu > 0 && <span className="text-red-600"> · {fcfa(totalEchu)} en retard</span>}
+          </p>
         </div>
         <div className={`p-5 border rounded-xl ${apresParts ? "border-gray-200" : "border-dashed border-gray-300 bg-gray-50"}`}>
           <p className="text-sm text-gray-500">Part des laveurs</p>
@@ -333,6 +379,7 @@ export default function Compta({ donnees }: { donnees: DonneesBrutes }) {
         <div className={`p-5 border rounded-xl ${t.benefice >= 0 ? "border-[#1F8A3B] bg-green-50" : "border-orange-300 bg-orange-50"}`}>
           <p className="text-sm text-gray-500">
             {t.benefice >= 0 ? "Bénéfice" : "Perte"} {apresParts ? "net" : "avant parts"}
+            {prevision && " prévu"}
           </p>
           <p className={`text-3xl font-bold ${t.benefice >= 0 ? "text-[#1F8A3B]" : "text-orange-600"}`}>
             {fcfa(t.benefice)}
@@ -341,6 +388,20 @@ export default function Compta({ donnees }: { donnees: DonneesBrutes }) {
           <Variation actuel={t.benefice} precedent={tPrec.benefice} />
         </div>
       </div>
+
+      {/* Factures à régler (entreprises en fin de mois...) */}
+      <FacturesARegler
+        factures={facturesAVenir.map((e) => ({
+          id: e.id,
+          numero: formatNumeroRecu(e.numero_recu),
+          montant: e.montant,
+          echeance: e.echeance,
+          dateLavage: e.reservation?.fin_lavage ?? null,
+          vehicule: e.reservation?.notes ?? null,
+          client: e.reservation?.client ?? null,
+        }))}
+        onConfirme={() => router.refresh()}
+      />
 
       {/* Évolution */}
       <section className="mb-10">
@@ -352,8 +413,8 @@ export default function Compta({ donnees }: { donnees: DonneesBrutes }) {
       <section className="mb-10">
         <h2 className="mb-1 text-lg font-bold">À verser aux laveurs</h2>
         <p className="mb-4 text-sm text-gray-500">
-          Selon la part fixée pour chaque prestation (onglet Prestations), pour les lavages encaissés sur la
-          période.
+          Selon la part fixée pour chaque prestation (onglet Prestations), pour les lavages réalisés sur la
+          période (même si le client, une entreprise par exemple, paie plus tard).
         </p>
         {parLaveur.length === 0 ? (
           <p className="text-sm text-gray-500">Aucune part sur la période.</p>
@@ -426,12 +487,13 @@ export default function Compta({ donnees }: { donnees: DonneesBrutes }) {
             <div className="space-y-2 text-sm">
               {entParMode.map((m) => (
                 <div key={m.cle} className="flex justify-between pb-2 border-b border-gray-100">
-                  <span>{libelleMode(m.cle) || "—"}</span>
+                  <span>{libelleMode(m.cle) || "À venir (non payé)"}</span>
                   <span className="font-medium">{fcfa(m.montant)}</span>
                 </div>
               ))}
               <p className="pt-1 text-xs text-gray-500">
-                {duPeriode.filter((m) => m.type === "entree").length} lavage(s) encaissé(s)
+                {duPeriode.filter((m) => m.type === "entree" && !m.prevision).length} lavage(s) encaissé(s)
+                {prevision && ` + ${duPeriode.filter((m) => m.prevision).length} facture(s) à venir`}
               </p>
             </div>
           )}
@@ -486,7 +548,7 @@ export default function Compta({ donnees }: { donnees: DonneesBrutes }) {
               </thead>
               <tbody>
                 {journal.map((m) => (
-                  <tr key={`${m.source}-${m.id}`} className="border-t border-gray-100">
+                  <tr key={`${m.source}-${m.id}`} className={`border-t border-gray-100 ${m.prevision ? "italic text-gray-500" : ""}`}>
                     <td className="py-2 pr-3 whitespace-nowrap">{dateFr(m.date)}</td>
                     <td className="py-2 pr-3 whitespace-nowrap text-gray-600">{libelleCategorie(m.categorie)}</td>
                     <td className="py-2 pr-3">
@@ -499,7 +561,7 @@ export default function Compta({ donnees }: { donnees: DonneesBrutes }) {
                     </td>
                     <td
                       className={`py-2 pr-3 font-medium text-right whitespace-nowrap ${
-                        m.type === "entree" ? "text-[#1F8A3B]" : "text-gray-900"
+                        m.prevision ? "text-orange-600" : m.type === "entree" ? "text-[#1F8A3B]" : "text-gray-900"
                       }`}
                     >
                       {m.type === "entree" ? "+" : "−"} {fcfa(m.montant)}
@@ -523,7 +585,7 @@ export default function Compta({ donnees }: { donnees: DonneesBrutes }) {
       </section>
 
       <p className="mt-8 text-xs text-gray-400">
-        Entrées = encaissements des lavages. Dépenses = part des laveurs (si « après part des laveurs »)
+        Entrées = lavages payés (en mode prévision, + factures à venir à leur échéance). Dépenses = part des laveurs (si « après part des laveurs »)
         + achats de produits (onglet Stock) + dépenses saisies ici. La part d&apos;un laveur ne change pas en
         cas de remise accordée au client.
         Calcul au {dateFr(versIso(new Date()))}.

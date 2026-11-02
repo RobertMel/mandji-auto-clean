@@ -2,15 +2,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { exigerGestionnaire } from "@/lib/session";
-import { MODES_PAIEMENT, fcfa, formatNumeroRecu } from "@/lib/config";
+import { MODES_PAIEMENT, dateCourteFr, fcfa, formatNumeroRecu } from "@/lib/config";
 import FicheClient from "./fiche-client";
 
 type Encaissement = {
   id: string;
   numero_recu: number | null;
   montant: number;
-  mode_paiement: string;
-  paye_le: string;
+  mode_paiement: string | null;
+  paye_le: string | null;
+  statut: string;
+  echeance: string | null;
 };
 
 type Passage = {
@@ -28,6 +30,7 @@ type ClientDetaille = {
   nom: string;
   prenom: string | null;
   telephone: string;
+  entreprise: boolean;
   email: string | null;
   notes: string | null;
   created_at: string;
@@ -58,12 +61,12 @@ export default async function ClientPage({
   const { data } = await supabase
     .from("clients")
     .select(
-      `id, nom, prenom, telephone, email, notes, created_at,
+      `id, nom, prenom, telephone, entreprise, email, notes, created_at,
        vehicules ( id, marque, couleur, immatriculation ),
        reservations (
          id, created_at, statut, canal, notes,
          reservation_prestations ( prestation:prestations ( nom ) ),
-         encaissements ( id, numero_recu, montant, mode_paiement, paye_le )
+         encaissements ( id, numero_recu, montant, mode_paiement, paye_le, statut, echeance )
        )`
     )
     .eq("id", id)
@@ -87,7 +90,12 @@ export default async function ClientPage({
       };
     });
 
-  const total = passages.reduce((s, p) => s + (p.encaissement?.montant ?? 0), 0);
+  const total = passages
+    .filter((p) => p.encaissement?.statut === "paye")
+    .reduce((s, p) => s + p.encaissement!.montant, 0);
+  const aPayer = passages
+    .filter((p) => p.encaissement && p.encaissement.statut !== "paye")
+    .reduce((s, p) => s + p.encaissement!.montant, 0);
 
   return (
     <main className="max-w-4xl px-6 py-10 mx-auto">
@@ -101,6 +109,7 @@ export default async function ClientPage({
           nom: client.nom,
           prenom: client.prenom ?? "",
           telephone: client.telephone,
+          entreprise: client.entreprise,
           email: client.email ?? "",
           notes: client.notes ?? "",
         }}
@@ -115,6 +124,9 @@ export default async function ClientPage({
         <div className="p-5 text-center border border-gray-200 rounded-xl bg-gray-50">
           <p className="text-sm text-gray-500">Total dépensé</p>
           <p className="text-2xl font-bold text-[#1F8A3B]">{fcfa(total)}</p>
+          {aPayer > 0 && (
+            <p className="mt-1 text-sm font-medium text-orange-600">+ {fcfa(aPayer)} à payer</p>
+          )}
         </div>
         <div className="p-5 text-center border border-gray-200 rounded-xl bg-gray-50">
           <p className="text-sm text-gray-500">Client depuis</p>
@@ -177,10 +189,14 @@ export default async function ClientPage({
                   href={`/dashboard/recu/${p.encaissement.id}`}
                   className="text-sm text-right hover:text-[#1F8A3B]"
                 >
-                  <span className="font-bold">{fcfa(p.encaissement.montant)}</span>
+                  <span className={`font-bold ${p.encaissement.statut === "paye" ? "" : "text-orange-600"}`}>
+                    {fcfa(p.encaissement.montant)}
+                  </span>
                   <span className="block text-xs text-gray-400">
-                    {MODES_PAIEMENT[p.encaissement.mode_paiement] ?? p.encaissement.mode_paiement}{" "}
-                    · reçu n° {formatNumeroRecu(p.encaissement.numero_recu)} →
+                    {p.encaissement.statut === "paye"
+                      ? (MODES_PAIEMENT[p.encaissement.mode_paiement ?? ""] ?? p.encaissement.mode_paiement)
+                      : `à régler${p.encaissement.echeance ? ` avant le ${dateCourteFr(p.encaissement.echeance)}` : ""}`}{" "}
+                    · facture n° {formatNumeroRecu(p.encaissement.numero_recu)} →
                   </span>
                 </Link>
               ) : (

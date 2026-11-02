@@ -7,10 +7,11 @@ type Ligne = {
   nom: string;
   prenom: string | null;
   telephone: string;
+  entreprise: boolean;
   vehicules: { marque: string | null; couleur: string | null; immatriculation: string | null }[];
   reservations: {
     created_at: string;
-    encaissements: { montant: number }[] | { montant: number } | null;
+    encaissements: { montant: number; statut: string }[] | { montant: number; statut: string } | null;
   }[];
 };
 
@@ -20,9 +21,9 @@ export default async function ClientsPage() {
   const { data } = await supabase
     .from("clients")
     .select(
-      `id, nom, prenom, telephone,
+      `id, nom, prenom, telephone, entreprise,
        vehicules ( marque, couleur, immatriculation ),
-       reservations ( created_at, encaissements ( montant ) )`
+       reservations ( created_at, encaissements ( montant, statut ) )`
     )
     .order("created_at", { ascending: false });
 
@@ -39,11 +40,13 @@ export default async function ClientsPage() {
       id: c.id,
       nom: [c.prenom, c.nom].filter(Boolean).join(" "),
       telephone: c.telephone,
+      entreprise: c.entreprise,
+      aPayer: montants.filter((e) => e.statut !== "paye").reduce((s, e) => s + e.montant, 0),
       vehicules: c.vehicules
         .map((v) => [v.marque, v.couleur, v.immatriculation].filter(Boolean).join(" "))
         .filter(Boolean),
       passages: c.reservations.length,
-      totalDepense: montants.reduce((s, e) => s + e.montant, 0),
+      totalDepense: montants.filter((e) => e.statut === "paye").reduce((s, e) => s + e.montant, 0),
       derniereVisite: dates.at(-1) ?? null,
     };
   });

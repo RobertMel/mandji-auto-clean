@@ -6,11 +6,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { creerClientNavigateur } from "@/lib/supabase/client";
-import { MODES_PAIEMENT, PAYS_DEFAUT, fcfa, numeroWhatsApp } from "@/lib/config";
+import { MODES_PAIEMENT, PAYS_DEFAUT, fcfa, libelleLaveur, numeroWhatsApp } from "@/lib/config";
 import ChampTelephone from "../champ-telephone";
 import type { PrestationCatalogue } from "./encaisser";
 
-type Laveur = { id: string; nom_complet: string };
+type Laveur = { id: string; nom_complet: string; surnom?: string | null };
 
 const champ =
   "w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-[#23B5D3]";
@@ -40,6 +40,7 @@ export default function LavageHorsSite({
   const [selection, setSelection] = useState<string[]>([]);
   const [montantSaisi, setMontantSaisi] = useState<string | null>(null);
   const [mode, setMode] = useState("especes");
+  const [differe, setDiffere] = useState(false); // entreprise : payé en fin de mois
   const [vehicule, setVehicule] = useState("");
   const [codePays, setCodePays] = useState(PAYS_DEFAUT);
   const [telephone, setTelephone] = useState("");
@@ -84,7 +85,8 @@ export default function LavageHorsSite({
       p_laveur_id: laveurId || null,
       p_prestation_ids: selection,
       p_montant: montant,
-      p_mode: mode,
+      p_mode: differe ? null : mode,
+      p_differe: differe,
       p_vehicule: vehicule,
       p_client_nom: nomClient,
       p_telephone: numero ?? "",
@@ -112,8 +114,9 @@ export default function LavageHorsSite({
     <div className="p-5 border border-gray-200 rounded-xl bg-gray-50">
       <h3 className="font-bold">Lavage déjà réalisé</h3>
       <p className="mb-4 text-sm text-gray-500">
-        Pour un lavage fait en dehors du site (à domicile, en entreprise…) et déjà payé. Il est compté à la
-        date choisie dans la compta, la part des laveurs et les statistiques.
+        Pour un lavage fait en dehors du site (à domicile, en entreprise…). Il est compté à la date choisie
+        dans la compta, la part des laveurs et les statistiques. S&apos;il sera payé plus tard (entreprise),
+        cochez « Paiement en fin de mois ».
       </p>
 
       {/* Quand et qui */}
@@ -132,7 +135,7 @@ export default function LavageHorsSite({
             <option value="">Non renseigné</option>
             {laveurs.map((l) => (
               <option key={l.id} value={l.id}>
-                {l.nom_complet}
+                {libelleLaveur(l)}
               </option>
             ))}
           </select>
@@ -167,7 +170,7 @@ export default function LavageHorsSite({
       {/* Paiement */}
       <div className="grid gap-3 mt-5 sm:grid-cols-2">
         <label className="text-sm">
-          Montant encaissé (FCFA)
+          {differe ? "Montant facturé (FCFA)" : "Montant encaissé (FCFA)"}
           <input
             type="number"
             inputMode="numeric"
@@ -183,6 +186,16 @@ export default function LavageHorsSite({
           )}
         </label>
         <div className="text-sm">
+          <label className="flex items-center gap-2 mb-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={differe}
+              onChange={(e) => setDiffere(e.target.checked)}
+              className="w-4 h-4 accent-[#1F8A3B]"
+            />
+            <span className="font-medium">Paiement en fin de mois (facture à régler)</span>
+          </label>
+          {!differe && (<>
           Mode de paiement
           <div className="flex flex-wrap gap-2 mt-1">
             {Object.entries(MODES_PAIEMENT).map(([v, l]) => (
@@ -199,6 +212,7 @@ export default function LavageHorsSite({
               </button>
             ))}
           </div>
+          </>)}
         </div>
       </div>
 

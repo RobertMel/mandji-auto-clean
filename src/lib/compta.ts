@@ -27,6 +27,7 @@ export type Mouvement = {
   laveurId?: string | null; // part des laveurs : qui a lavé
   nbPrestations?: number; // part des laveurs : nombre de prestations
   lien: string | null; // reçu, page stock...
+  prevision?: boolean; // facture pas encore payée (comptée seulement en mode prévision)
 };
 
 // --- Dates -------------------------------------------------------------

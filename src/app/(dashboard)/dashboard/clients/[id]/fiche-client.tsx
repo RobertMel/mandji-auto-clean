@@ -12,6 +12,7 @@ type Client = {
   nom: string;
   prenom: string;
   telephone: string;
+  entreprise: boolean;
   email: string;
   notes: string;
 };
@@ -29,6 +30,19 @@ export default function FicheClient({ client }: { client: Client }) {
   const [codePays, setCodePays] = useState(initial.codePays);
   const [telephone, setTelephone] = useState(initial.local);
   const [chargement, setChargement] = useState(false);
+  const [entreprise, setEntreprise] = useState(client.entreprise);
+
+  // Particulier / entreprise : enregistré tout de suite
+  const basculerEntreprise = async () => {
+    const valeur = !entreprise;
+    setEntreprise(valeur);
+    const supabase = creerClientNavigateur();
+    const { error } = await supabase.from("clients").update({ entreprise: valeur }).eq("id", client.id);
+    if (error) {
+      setEntreprise(!valeur);
+      alert("Erreur : " + error.message);
+    } else router.refresh();
+  };
   const [erreur, setErreur] = useState("");
   const router = useRouter();
 
@@ -83,6 +97,17 @@ export default function FicheClient({ client }: { client: Client }) {
           <h1 className="text-2xl font-bold">
             {[client.prenom, client.nom].filter(Boolean).join(" ")}
           </h1>
+          <label className="inline-flex items-center gap-2 my-1 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={entreprise}
+              onChange={basculerEntreprise}
+              className="w-4 h-4 accent-indigo-600"
+            />
+            <span className={entreprise ? "font-medium text-indigo-700" : "text-gray-600"}>
+              Entreprise (paie en fin de mois)
+            </span>
+          </label>
           <p className="text-gray-600">{formaterInternational(client.telephone)}</p>
           {client.email && <p className="text-sm text-gray-500">{client.email}</p>}
           {client.notes && (

@@ -6,7 +6,7 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import { creerClientServeur } from "@/lib/supabase/server";
 
-export type Profil = { nom_complet: string; role: string; actif: boolean };
+export type Profil = { nom_complet: string; role: string; actif: boolean; surnom: string | null };
 
 export const sessionCourante = cache(async () => {
   const supabase = await creerClientServeur();
@@ -19,7 +19,7 @@ export const sessionCourante = cache(async () => {
 
   const { data: profil } = await supabase
     .from("profils")
-    .select("nom_complet, role, actif")
+    .select("nom_complet, role, actif, surnom")
     .eq("id", userId)
     .single();
 

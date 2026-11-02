@@ -5,8 +5,9 @@ import Link from "next/link";
 import NouveauVehicule from "./nouveau-vehicule";
 import Encaisser, { type PrestationCatalogue } from "./encaisser";
 import LavageHorsSite from "./lavage-hors-site";
+import PrevenirClient from "./prevenir-client";
 import { useState } from "react";
-import { fcfa, formatNumeroRecu } from "@/lib/config";
+import { fcfa, formatNumeroRecu, libelleLaveur } from "@/lib/config";
 import { useRouter } from "next/navigation";
 import { creerClientNavigateur } from "@/lib/supabase/client";
 
@@ -19,15 +20,31 @@ type Reservation = {
   debut_lavage: string | null;
   fin_lavage: string | null;
   canal: string | null;
+  telephone_client: string | null;
+  client_prevenu_le: string | null;
+  client: { nom: string; prenom: string | null; entreprise: boolean; telephone: string | null } | null;
   encaissement: {
     id: string;
     numero_recu: number | null;
     montant: number;
-    paye_le: string;
+    paye_le: string | null;
+    statut: string;
   } | null;
 };
 
-type Laveur = { id: string; nom_complet: string; role?: string };
+type Laveur = { id: string; nom_complet: string; role?: string; surnom?: string | null };
+
+const nomDuClient = (r: Reservation) =>
+  r.client && r.client.nom !== "Sans nom"
+    ? [r.client.prenom, r.client.nom].filter(Boolean).join(" ")
+    : null;
+
+const badgeEntreprise = (r: Reservation) =>
+  r.client?.entreprise && (
+    <span className="ml-2 px-2 py-0.5 text-[11px] font-medium text-indigo-700 bg-indigo-100 rounded-full align-middle">
+      Entreprise
+    </span>
+  );
 
 const heure = (iso: string | null) =>
   iso
@@ -52,8 +69,10 @@ export default function FileAttente({
   const [chargement, setChargement] = useState<string | null>(null);
   const [encaissement, setEncaissement] = useState<string | null>(null);
   const peutEncaisser = monRole === "gerante" || monRole === "admin";
-  const nomLaveur = (id: string | null) =>
-    laveurs.find((l) => l.id === id)?.nom_complet ?? "—";
+  const nomLaveur = (id: string | null) => libelleLaveur(laveurs.find((l) => l.id === id));
+  const listeLaveurs = laveurs
+    .filter((l) => l.role === "laveur")
+    .sort((a, b) => a.nom_complet.localeCompare(b.nom_complet, "fr", { numeric: true }));
   const router = useRouter();
   const supabase = creerClientNavigateur();
 
@@ -76,6 +95,45 @@ export default function FileAttente({
     }
     setChargement(null);
   };
+
+  // Gérante / admin : assigner (ou réassigner) un lavage à un laveur,
+  // ou le remettre en attente
+  const assigner = async (r: Reservation, laveurId: string) => {
+    if (!laveurId) return;
+    setChargement(r.id);
+    const maj =
+      laveurId === "attente"
+        ? { laveur_id: null, statut: "en_attente", debut_lavage: null }
+        : r.statut === "en_attente"
+          ? { laveur_id: laveurId, statut: "en_cours", debut_lavage: new Date().toISOString() }
+          : { laveur_id: laveurId };
+    const { error } = await supabase.from("reservations").update(maj).eq("id", r.id);
+    setChargement(null);
+    if (error) alert("Impossible d'assigner : " + error.message);
+    else router.refresh();
+  };
+
+  const choixLaveur = (r: Reservation) =>
+    peutEncaisser && (
+      <select
+        value={r.statut === "en_cours" ? (r.laveur_id ?? "") : ""}
+        onChange={(e) => assigner(r, e.target.value)}
+        disabled={chargement === r.id}
+        aria-label="Assigner à un laveur"
+        className="max-w-[11rem] px-2 py-2 text-sm bg-white border border-gray-300 rounded-full focus:outline-none focus:border-[#23B5D3] disabled:opacity-50"
+      >
+        {r.statut === "en_attente" && <option value="">Assigner à…</option>}
+        {r.statut === "en_cours" && !listeLaveurs.some((l) => l.id === r.laveur_id) && (
+          <option value={r.laveur_id ?? ""}>{nomLaveur(r.laveur_id)}</option>
+        )}
+        {listeLaveurs.map((l) => (
+          <option key={l.id} value={l.id}>
+            {libelleLaveur(l)}
+          </option>
+        ))}
+        {r.statut === "en_cours" && <option value="attente">↩ Remettre en attente</option>}
+      </select>
+    );
 
   // Le laveur termine son lavage
   const terminer = async (id: string) => {
@@ -127,13 +185,16 @@ export default function FileAttente({
   const aEncaisser = reservations.filter(
     (r) => r.statut === "terminee" && !r.encaissement
   );
+  // Date retenue : paiement, ou fin du lavage pour une facture à régler
+  const dateEncaissement = (r: Reservation) => r.encaissement?.paye_le ?? r.fin_lavage ?? "";
   const encaissesAujourdhui = reservations
     .filter(
       (r) =>
         r.encaissement &&
-        new Date(r.encaissement.paye_le).toDateString() === new Date().toDateString()
+        dateEncaissement(r) &&
+        new Date(dateEncaissement(r)).toDateString() === new Date().toDateString()
     )
-    .sort((a, b) => b.encaissement!.paye_le.localeCompare(a.encaissement!.paye_le));
+    .sort((a, b) => dateEncaissement(b).localeCompare(dateEncaissement(a)));
   const termineesAujourdhui = reservations.filter(
     (r) =>
       r.statut === "terminee" &&
@@ -147,12 +208,7 @@ export default function FileAttente({
       {(monRole === "gerante" || monRole === "admin") && (
         <div className="mb-8 space-y-3">
           <NouveauVehicule />
-          <LavageHorsSite
-            prestations={prestations}
-            laveurs={laveurs
-              .filter((l) => l.role === "laveur")
-              .sort((a, b) => a.nom_complet.localeCompare(b.nom_complet, "fr", { numeric: true }))}
-          />
+          <LavageHorsSite prestations={prestations} laveurs={listeLaveurs} />
         </div>
       )}
 
@@ -171,16 +227,21 @@ export default function FileAttente({
             {enAttente.map((r) => (
               <div
                 key={r.id}
-                className="flex items-center justify-between gap-3 p-4 border border-gray-200 rounded-xl"
+                className="flex flex-wrap items-center justify-between gap-3 p-4 border border-gray-200 rounded-xl"
               >
-                <div>
-                  <p className="font-medium">{r.notes ?? "Véhicule"}</p>
+                <div className="min-w-0">
+                  <p className="font-medium">
+                    {r.notes ?? "Véhicule"}
+                    {badgeEntreprise(r)}
+                  </p>
                   <p className="text-xs text-gray-400 capitalize">
                     {r.canal}
                   </p>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
+                <div className="flex flex-wrap items-center justify-end gap-1">
                   {boutonSupprimer(r)}
+                  {choixLaveur(r)}
+                  {monRole === "laveur" && (
                   <button
                     onClick={() => prendre(r.id)}
                     disabled={chargement === r.id}
@@ -188,6 +249,7 @@ export default function FileAttente({
                   >
                     {chargement === r.id ? "..." : "Je prends"}
                   </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -210,17 +272,25 @@ export default function FileAttente({
               return (
                 <div
                   key={r.id}
-                  className="flex items-center justify-between gap-3 p-4 border rounded-xl border-[#23B5D3] bg-cyan-50"
+                  className="flex flex-wrap items-center justify-between gap-3 p-4 border rounded-xl border-[#23B5D3] bg-cyan-50"
                 >
-                  <div>
-                    <p className="font-medium">{r.notes ?? "Véhicule"}</p>
+                  <div className="min-w-0">
+                    <p className="font-medium">
+                      {r.notes ?? "Véhicule"}
+                      {badgeEntreprise(r)}
+                    </p>
                     <p className="text-xs text-gray-500">
-                      {estAMoi ? "Vous lavez ce véhicule" : "Pris par un collègue"}
+                      {estAMoi
+                        ? "Vous lavez ce véhicule"
+                        : peutEncaisser
+                          ? `${nomLaveur(r.laveur_id)}${r.debut_lavage ? ` · depuis ${heure(r.debut_lavage)}` : ""}`
+                          : "Pris par un collègue"}
                     </p>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex flex-wrap items-center justify-end gap-1">
                     {boutonSupprimer(r)}
-                    {estAMoi && (
+                    {choixLaveur(r)}
+                    {(estAMoi || peutEncaisser) && (
                       <button
                         onClick={() => terminer(r.id)}
                         disabled={chargement === r.id}
@@ -251,17 +321,28 @@ export default function FileAttente({
             <div className="space-y-3">
               {aEncaisser.map((r) => (
                 <div key={r.id} className="p-4 border border-orange-200 rounded-xl bg-orange-50">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{r.notes ?? "Véhicule"}</p>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium">
+                        {r.notes ?? "Véhicule"}
+                        {badgeEntreprise(r)}
+                      </p>
                       <p className="text-xs text-gray-500">
+                        {nomDuClient(r) && `${nomDuClient(r)} · `}
                         Lavé par {nomLaveur(r.laveur_id)}
                         {r.fin_lavage && ` · terminé à ${heure(r.fin_lavage)}`}
                       </p>
                     </div>
                     {encaissement !== r.id && (
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex flex-wrap items-center justify-end gap-1">
                         {boutonSupprimer(r)}
+                        <PrevenirClient
+                          reservationId={r.id}
+                          telephone={r.telephone_client ?? r.client?.telephone ?? null}
+                          nomClient={nomDuClient(r)}
+                          vehicule={r.notes}
+                          prevenuLe={r.client_prevenu_le}
+                        />
                         <button
                           onClick={() => setEncaissement(r.id)}
                           className="px-5 py-2 text-sm font-medium text-white rounded-full bg-[#1F8A3B] hover:bg-[#176d2e]"
@@ -276,6 +357,7 @@ export default function FileAttente({
                       reservationId={r.id}
                       vehicule={r.notes ?? "Véhicule"}
                       prestations={prestations}
+                      entreprise={!!r.client?.entreprise}
                       onFermer={() => setEncaissement(null)}
                     />
                   )}
@@ -290,7 +372,7 @@ export default function FileAttente({
       {peutEncaisser && encaissesAujourdhui.length > 0 && (
         <section className="mb-12">
           <h2 className="mb-4 text-xl font-bold">
-            Encaissés aujourd&apos;hui{" "}
+            Encaissés / facturés aujourd&apos;hui{" "}
             <span className="text-gray-400">({encaissesAujourdhui.length})</span>
           </h2>
           <div className="space-y-2">
@@ -298,16 +380,24 @@ export default function FileAttente({
               <div key={r.id} className="flex items-center gap-1">
               <Link
                 href={`/dashboard/recu/${r.encaissement!.id}`}
-                className="flex items-center justify-between flex-1 min-w-0 p-3 text-sm border border-gray-200 rounded-xl hover:border-[#23B5D3]"
+                className="flex flex-wrap items-center justify-between flex-1 min-w-0 p-3 text-sm border border-gray-200 gap-x-3 gap-y-1 rounded-xl hover:border-[#23B5D3]"
               >
                 <span>
                   <span className="text-gray-400">
                     n° {formatNumeroRecu(r.encaissement!.numero_recu)}
                   </span>{" "}
                   · {r.notes ?? "Véhicule"}
+                  {r.encaissement!.statut === "a_venir" && (
+                    <span className="ml-2 px-2 py-0.5 text-[11px] font-medium text-orange-700 bg-orange-100 rounded-full">
+                      à régler
+                    </span>
+                  )}
                 </span>
-                <span className="font-medium">
-                  {fcfa(r.encaissement!.montant)} <span className="text-[#23B5D3]">→ Reçu</span>
+                <span className="font-medium shrink-0">
+                  {fcfa(r.encaissement!.montant)}{" "}
+                  <span className="text-[#23B5D3]">
+                    → {r.encaissement!.statut === "a_venir" ? "Facture" : "Reçu"}
+                  </span>
                 </span>
               </Link>
               {boutonSupprimer(r)}

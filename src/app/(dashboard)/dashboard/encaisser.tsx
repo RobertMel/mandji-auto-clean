@@ -25,12 +25,16 @@ export default function Encaisser({
   vehicule,
   prestations,
   onFermer,
+  entreprise = false,
 }: {
   reservationId: string;
   vehicule: string;
   prestations: PrestationCatalogue[];
   onFermer: () => void;
+  entreprise?: boolean; // client entreprise : paiement en fin de mois proposé d'office
 }) {
+  // Paiement différé (facture à régler en fin de mois)
+  const [differe, setDiffere] = useState(entreprise);
   const [selection, setSelection] = useState<string[]>([]);
   const [montantSaisi, setMontantSaisi] = useState<string | null>(null);
   const [mode, setMode] = useState<string>("especes");
@@ -58,7 +62,8 @@ export default function Encaisser({
       p_reservation_id: reservationId,
       p_prestation_ids: selection,
       p_montant: montant,
-      p_mode: mode,
+      p_mode: differe ? null : mode,
+      p_differe: differe,
     });
 
     setChargement(false);
@@ -76,7 +81,7 @@ export default function Encaisser({
 
   return (
     <div className="p-5 mt-3 border border-gray-200 rounded-xl bg-gray-50">
-      <h3 className="mb-1 font-bold">Encaisser</h3>
+      <h3 className="mb-1 font-bold">{differe ? "Facturer" : "Encaisser"}</h3>
       <p className="mb-4 text-sm text-gray-500">{vehicule}</p>
 
       {/* Prestations réalisées */}
@@ -110,7 +115,7 @@ export default function Encaisser({
         <span className="font-medium">{fcfa(total)}</span>
       </div>
       <label className="flex items-center justify-between gap-4 mb-1">
-        <span className="text-sm font-medium">Montant encaissé</span>
+        <span className="text-sm font-medium">{differe ? "Montant facturé" : "Montant encaissé"}</span>
         <div className="flex items-center gap-2">
           <input
             type="number"
@@ -134,7 +139,26 @@ export default function Encaisser({
         </p>
       )}
 
+      {/* Paiement tout de suite, ou en fin de mois (entreprises) */}
+      <label className="flex items-start gap-3 p-3 mt-4 bg-white border border-gray-200 rounded-lg cursor-pointer">
+        <input
+          type="checkbox"
+          checked={differe}
+          onChange={(e) => setDiffere(e.target.checked)}
+          className="mt-1 w-4 h-4 accent-[#1F8A3B]"
+        />
+        <span className="text-sm">
+          <span className="font-medium">Paiement en fin de mois</span>
+          <span className="block text-gray-500">
+            Une facture « à régler » est créée ; le paiement se confirme plus tard (onglet Compta ou
+            facture). {entreprise && "Proposé d'office : ce client est une entreprise."}
+          </span>
+        </span>
+      </label>
+
       {/* Mode de paiement */}
+      {!differe && (
+      <>
       <p className="mt-4 mb-2 text-sm font-medium">Mode de paiement</p>
       <div className="flex flex-wrap gap-2">
         {MODES.map((m) => (
@@ -151,6 +175,8 @@ export default function Encaisser({
           </button>
         ))}
       </div>
+      </>
+      )}
 
       {erreur && <p className="mt-4 text-sm text-red-600">{erreur}</p>}
 
@@ -160,7 +186,7 @@ export default function Encaisser({
           disabled={chargement || invalide}
           className="px-5 py-2 text-sm font-medium text-white rounded-full bg-[#1F8A3B] hover:bg-[#176d2e] disabled:opacity-50"
         >
-          {chargement ? "..." : `Valider ${fcfa(montant)}`}
+          {chargement ? "..." : differe ? `Facturer ${fcfa(montant)}` : `Valider ${fcfa(montant)}`}
         </button>
         <button
           onClick={onFermer}

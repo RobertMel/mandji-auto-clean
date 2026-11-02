@@ -163,3 +163,15 @@ export const GRILLE_PART_LAVEUR: Record<number, number> = {
 
 export const partSelonGrille = (prix: number): number | null =>
   GRILLE_PART_LAVEUR[prix] ?? null;
+
+// Nom affiché d'un laveur : « Laveur 1 · Karin » (le surnom est facultatif)
+export const libelleLaveur = (p: { nom_complet: string; surnom?: string | null } | null | undefined) =>
+  !p ? "—" : p.surnom ? `${p.nom_complet} · ${p.surnom}` : p.nom_complet;
+
+// Date courte : « 30 nov. 2026 »
+export const dateCourteFr = (iso: string) =>
+  new Date(iso.length === 10 ? iso + "T12:00:00" : iso).toLocaleDateString("fr-FR", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });

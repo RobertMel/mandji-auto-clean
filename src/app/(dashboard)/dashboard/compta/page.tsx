@@ -9,8 +9,9 @@ export default async function ComptaPage() {
     supabase
       .from("encaissements")
       .select(
-        `id, numero_recu, montant, mode_paiement, paye_le,
-         reservation:reservations ( notes, canal, laveur_id, reservation_prestations ( part_laveur ) )`
+        `id, numero_recu, montant, mode_paiement, paye_le, statut, echeance,
+         reservation:reservations ( notes, canal, laveur_id, fin_lavage, reservation_prestations ( part_laveur ),
+           client:clients ( id, nom, prenom, entreprise ) )`
       ),
     supabase
       .from("achats_stock")
@@ -18,7 +19,7 @@ export default async function ComptaPage() {
     supabase
       .from("depenses")
       .select("id, depense_le, categorie, libelle, montant, mode_paiement"),
-    supabase.from("profils").select("id, nom_complet, role"),
+    supabase.from("profils").select("id, nom_complet, role, surnom"),
   ]);
 
   // Les dates des encaissements (horodatages) sont converties en date

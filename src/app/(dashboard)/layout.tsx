@@ -1,6 +1,7 @@
 // src/app/(dashboard)/layout.tsx
 import Link from "next/link";
 import { exigerConnexion } from "@/lib/session";
+import { libelleLaveur } from "@/lib/config";
 import Deconnexion from "./deconnexion";
 import NavDashboard from "./nav-dashboard";
 
@@ -26,7 +27,7 @@ export default async function DashboardLayout({
 
           <div className="flex items-center min-w-0 gap-3">
             <div className="min-w-0 text-right">
-              <p className="text-sm font-medium truncate">{profil.nom_complet}</p>
+              <p className="text-sm font-medium truncate">{libelleLaveur(profil)}</p>
               <p className="text-xs text-gray-500">
                 {({ gerante: "Gérante", admin: "Admin", laveur: "Laveur" } as Record<string, string>)[profil.role] ?? profil.role}
               </p>
