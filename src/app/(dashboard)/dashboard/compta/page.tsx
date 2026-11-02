@@ -10,7 +10,7 @@ export default async function ComptaPage() {
       .from("encaissements")
       .select(
         `id, numero_recu, montant, mode_paiement, paye_le,
-         reservation:reservations ( notes, laveur_id, reservation_prestations ( part_laveur ) )`
+         reservation:reservations ( notes, canal, laveur_id, reservation_prestations ( part_laveur ) )`
       ),
     supabase
       .from("achats_stock")

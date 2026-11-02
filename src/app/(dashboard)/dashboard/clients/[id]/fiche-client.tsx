@@ -114,7 +114,7 @@ export default function FicheClient({ client }: { client: Client }) {
   return (
     <section className="p-5 mt-4 mb-8 border rounded-xl border-[#23B5D3] bg-cyan-50">
       <h2 className="mb-4 font-bold">Modifier la fiche</h2>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 [&>*]:min-w-0">
         <input
           type="text"
           placeholder="Prénom"

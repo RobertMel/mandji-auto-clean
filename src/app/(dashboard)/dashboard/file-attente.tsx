@@ -4,6 +4,7 @@
 import Link from "next/link";
 import NouveauVehicule from "./nouveau-vehicule";
 import Encaisser, { type PrestationCatalogue } from "./encaisser";
+import LavageHorsSite from "./lavage-hors-site";
 import { useState } from "react";
 import { fcfa, formatNumeroRecu } from "@/lib/config";
 import { useRouter } from "next/navigation";
@@ -26,7 +27,7 @@ type Reservation = {
   } | null;
 };
 
-type Laveur = { id: string; nom_complet: string };
+type Laveur = { id: string; nom_complet: string; role?: string };
 
 const heure = (iso: string | null) =>
   iso
@@ -144,8 +145,14 @@ export default function FileAttente({
     <main className="max-w-4xl px-6 py-10 mx-auto">
       {/* Enregistrement rapide — gérante et admin uniquement */}
       {(monRole === "gerante" || monRole === "admin") && (
-        <div className="mb-8">
+        <div className="mb-8 space-y-3">
           <NouveauVehicule />
+          <LavageHorsSite
+            prestations={prestations}
+            laveurs={laveurs
+              .filter((l) => l.role === "laveur")
+              .sort((a, b) => a.nom_complet.localeCompare(b.nom_complet, "fr", { numeric: true }))}
+          />
         </div>
       )}
 

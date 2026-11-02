@@ -20,8 +20,8 @@ export default async function DashboardPage() {
       ? supabase.from("prestations").select("id, nom, prix").eq("active", true).order("prix", { ascending: true })
       : Promise.resolve({ data: [] as { id: string; nom: string; prix: number }[] }),
     peutEncaisser
-      ? supabase.from("profils").select("id, nom_complet")
-      : Promise.resolve({ data: [] as { id: string; nom_complet: string }[] }),
+      ? supabase.from("profils").select("id, nom_complet, role")
+      : Promise.resolve({ data: [] as { id: string; nom_complet: string; role: string }[] }),
   ]);
 
   return (

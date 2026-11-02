@@ -127,7 +127,7 @@ export default function NouveauVehicule() {
       <p className="mb-2 text-sm font-medium">
         Client <span className="font-normal text-gray-400">(facultatif)</span>
       </p>
-      <div className="grid gap-3 mb-2 sm:grid-cols-2">
+      <div className="grid gap-3 mb-2 sm:grid-cols-2 [&>*]:min-w-0">
         <ChampTelephone
           telephone={telephone}
           setTelephone={setTelephone}

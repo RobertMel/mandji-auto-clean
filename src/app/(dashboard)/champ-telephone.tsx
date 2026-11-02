@@ -33,7 +33,7 @@ export default function ChampTelephone({
           onChange={(e) => setCodePays(e.target.value)}
           disabled={saisieInternationale}
           aria-label="Pays du numéro"
-          className="w-28 px-2 py-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-[#23B5D3] disabled:opacity-40"
+          className="w-28 shrink-0 px-2 py-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-[#23B5D3] disabled:opacity-40"
         >
           {PAYS.map((p) => (
             <option key={p.code} value={p.code}>

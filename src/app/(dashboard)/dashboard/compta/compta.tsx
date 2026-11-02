@@ -34,6 +34,7 @@ export type DonneesBrutes = {
     paye_le: string;
     reservation: {
       notes: string | null;
+      canal: string | null;
       laveur_id: string | null;
       reservation_prestations: { part_laveur: number }[];
     } | null;
@@ -108,7 +109,9 @@ function construireMouvements(d: DonneesBrutes): Mouvement[] {
       date: dateLocale(e.paye_le),
       type: "entree",
       categorie: "lavages",
-      libelle: `Reçu n° ${formatNumeroRecu(e.numero_recu)}${e.reservation?.notes ? ` — ${e.reservation.notes}` : ""}`,
+      libelle: `Reçu n° ${formatNumeroRecu(e.numero_recu)}${e.reservation?.notes ? ` — ${e.reservation.notes}` : ""}${
+        e.reservation?.canal === "hors_site" ? " (hors site)" : ""
+      }`,
       montant: e.montant,
       mode: e.mode_paiement,
       source: "encaissement",

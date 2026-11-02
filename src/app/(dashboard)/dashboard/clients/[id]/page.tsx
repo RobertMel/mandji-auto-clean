@@ -17,6 +17,7 @@ type Passage = {
   id: string;
   created_at: string;
   statut: string;
+  canal: string | null;
   notes: string | null;
   reservation_prestations: { prestation: { nom: string } | null }[];
   encaissements: Encaissement[] | Encaissement | null;
@@ -60,7 +61,7 @@ export default async function ClientPage({
       `id, nom, prenom, telephone, email, notes, created_at,
        vehicules ( id, marque, couleur, immatriculation ),
        reservations (
-         id, created_at, statut, notes,
+         id, created_at, statut, canal, notes,
          reservation_prestations ( prestation:prestations ( nom ) ),
          encaissements ( id, numero_recu, montant, mode_paiement, paye_le )
        )`
@@ -158,6 +159,9 @@ export default async function ClientPage({
                     month: "long",
                     year: "numeric",
                   })}
+                  {p.canal === "hors_site" && (
+                    <span className="ml-2 text-xs text-[#0a8fb0]">hors site</span>
+                  )}
                   {p.statut !== "terminee" && (
                     <span className="ml-2 text-xs text-orange-600">
                       {STATUTS[p.statut] ?? p.statut}
