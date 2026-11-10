@@ -4,8 +4,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { creerClientNavigateur } from "@/lib/supabase/client";
-import { PAYS_DEFAUT, numeroWhatsApp } from "@/lib/config";
+import { PAYS_DEFAUT, decomposerNumero, numeroWhatsApp } from "@/lib/config";
 import ChampTelephone from "../champ-telephone";
+import SuggestionsPlaque, { nomClientConnu, type VehiculeConnu } from "./suggestions-plaque";
 
 type ClientConnu = {
   id: string;
@@ -68,6 +69,19 @@ export default function NouveauVehicule() {
     };
   }, [numero]);
 
+  // Véhicule retrouvé par sa plaque : on remplit tout le formulaire
+  const choisirVehicule = (v: VehiculeConnu) => {
+    setImmat(v.immatriculation ?? "");
+    setMarque(v.marque ?? "");
+    setCouleur(v.couleur ?? "");
+    if (v.telephone) {
+      const d = decomposerNumero(v.telephone);
+      setCodePays(d.codePays);
+      setTelephone(d.local);
+    }
+    setNomClient(nomClientConnu(v));
+  };
+
   const reinitialiser = () => {
     setTelephone("");
     setNomClient("");
@@ -123,6 +137,25 @@ export default function NouveauVehicule() {
     <div className="p-5 border border-gray-200 rounded-xl bg-gray-50">
       <h3 className="mb-4 font-bold">Enregistrer un véhicule</h3>
 
+      {/* Plaque d'abord : retrouve le client s'il est déjà venu */}
+      <div className="mb-4">
+        <label htmlFor="plaque-vehicule" className="text-sm font-medium">Plaque</label>
+        <input
+          id="plaque-vehicule"
+          type="text"
+          placeholder="Ex : LC 469 AA"
+          value={immat}
+          onChange={(e) => setImmat(e.target.value)}
+          autoCapitalize="characters"
+          autoComplete="off"
+          className={`${champ} w-full mt-1 uppercase placeholder:normal-case`}
+        />
+        <span className="block mt-1 text-xs text-gray-500">
+          Déjà venu ? Tapez quelques caractères de la plaque pour retrouver le client.
+        </span>
+        <SuggestionsPlaque plaque={immat} onChoisir={choisirVehicule} />
+      </div>
+
       {/* Client */}
       <p className="mb-2 text-sm font-medium">
         Client <span className="font-normal text-gray-400">(facultatif)</span>
@@ -174,7 +207,7 @@ export default function NouveauVehicule() {
 
       {/* Véhicule */}
       <p className="mt-4 mb-2 text-sm font-medium">Véhicule</p>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <input
           type="text"
           placeholder="Marque (ex : Toyota)"
@@ -187,13 +220,6 @@ export default function NouveauVehicule() {
           placeholder="Couleur"
           value={couleur}
           onChange={(e) => setCouleur(e.target.value)}
-          className={champ}
-        />
-        <input
-          type="text"
-          placeholder="Plaque"
-          value={immat}
-          onChange={(e) => setImmat(e.target.value)}
           className={champ}
         />
       </div>

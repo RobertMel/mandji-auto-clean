@@ -6,8 +6,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { creerClientNavigateur } from "@/lib/supabase/client";
-import { MODES_PAIEMENT, PAYS_DEFAUT, fcfa, libelleLaveur, numeroWhatsApp } from "@/lib/config";
+import { MODES_PAIEMENT, PAYS_DEFAUT, decomposerNumero, fcfa, libelleLaveur, numeroWhatsApp } from "@/lib/config";
 import ChampTelephone from "../champ-telephone";
+import SuggestionsPlaque, { nomClientConnu, type VehiculeConnu } from "./suggestions-plaque";
 import type { PrestationCatalogue } from "./encaisser";
 
 type Laveur = { id: string; nom_complet: string; surnom?: string | null };
@@ -42,6 +43,7 @@ export default function LavageHorsSite({
   const [mode, setMode] = useState("especes");
   const [differe, setDiffere] = useState(false); // entreprise : payé en fin de mois
   const [vehicule, setVehicule] = useState("");
+  const [plaque, setPlaque] = useState("");
   const [codePays, setCodePays] = useState(PAYS_DEFAUT);
   const [telephone, setTelephone] = useState("");
   const [nomClient, setNomClient] = useState("");
@@ -53,6 +55,19 @@ export default function LavageHorsSite({
   const montant = montantSaisi === null ? total : Number(montantSaisi) || 0;
   const numero = numeroWhatsApp(telephone, codePays);
 
+  // Véhicule retrouvé par sa plaque : client et véhicule remplis
+  const choisirVehicule = (v: VehiculeConnu) => {
+    setPlaque(v.immatriculation ?? "");
+    setVehicule([v.marque, v.couleur, v.immatriculation].filter(Boolean).join(" "));
+    if (v.telephone) {
+      const d = decomposerNumero(v.telephone);
+      setCodePays(d.codePays);
+      setTelephone(d.local);
+    }
+    setNomClient(nomClientConnu(v));
+    if (v.entreprise) setDiffere(true);
+  };
+
   const basculer = (id: string) =>
     setSelection((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 
@@ -61,6 +76,7 @@ export default function LavageHorsSite({
     setSelection([]);
     setMontantSaisi(null);
     setVehicule("");
+    setPlaque("");
     setTelephone("");
     setNomClient("");
     setNote("");
@@ -79,6 +95,12 @@ export default function LavageHorsSite({
 
     setChargement(true);
     setErreur("");
+    // La plaque est ajoutée au véhicule si elle n'y figure pas déjà
+    const p = plaque.trim().toUpperCase();
+    const vehiculeComplet =
+      p && !vehicule.toUpperCase().replace(/[^A-Z0-9]/g, "").includes(p.replace(/[^A-Z0-9]/g, ""))
+        ? [vehicule.trim(), p].filter(Boolean).join(" ")
+        : vehicule;
     const supabase = creerClientNavigateur();
     const { data: encaissementId, error } = await supabase.rpc("enregistrer_lavage_externe", {
       p_date: quand.toISOString(),
@@ -87,7 +109,7 @@ export default function LavageHorsSite({
       p_montant: montant,
       p_mode: differe ? null : mode,
       p_differe: differe,
-      p_vehicule: vehicule,
+      p_vehicule: vehiculeComplet,
       p_client_nom: nomClient,
       p_telephone: numero ?? "",
       p_note: note,
@@ -220,6 +242,19 @@ export default function LavageHorsSite({
       <p className="mt-5 mb-2 text-sm font-medium">
         Client et véhicule <span className="font-normal text-gray-400">(facultatif)</span>
       </p>
+      <div className="mb-3">
+        <input
+          type="text"
+          placeholder="Plaque (retrouve le client s'il est déjà venu)"
+          value={plaque}
+          onChange={(e) => setPlaque(e.target.value)}
+          autoCapitalize="characters"
+          autoComplete="off"
+          aria-label="Plaque"
+          className={`${champ} uppercase placeholder:normal-case`}
+        />
+        <SuggestionsPlaque plaque={plaque} onChoisir={choisirVehicule} />
+      </div>
       <div className="grid gap-3 sm:grid-cols-2 [&>*]:min-w-0">
         <ChampTelephone
           telephone={telephone}

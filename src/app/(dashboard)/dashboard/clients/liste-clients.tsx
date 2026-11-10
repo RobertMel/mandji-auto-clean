@@ -20,9 +20,9 @@ export type ClientResume = {
 type Tri = "recent" | "fideles" | "depense";
 type Type = "tous" | "particuliers" | "entreprises";
 
-// Minuscules, sans accents ni espaces : "Émma  C" -> "emmac"
+// Minuscules, sans accents, espaces, tirets ni points : "Émma  C" -> "emmac", "LC-469" -> "lc469"
 const simplifier = (s: string) =>
-  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s/g, "");
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[\s\-.]/g, "");
 
 export default function ListeClients({ clients }: { clients: ClientResume[] }) {
   const [recherche, setRecherche] = useState("");
